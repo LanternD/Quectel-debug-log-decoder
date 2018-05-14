@@ -58,10 +58,24 @@ class DebugLogDecoder(object):
         # print(type_set)
         print('Available types:', len(type_set))
 
-    def log_reader(self, log_path, is_from_log_viewer=True, save_to_file_flag=True):
+    def log_reader(self, log_path, filter_dict, is_from_log_viewer=True, save_to_file_flag=True):
         if not is_from_log_viewer:
             print('Unable to parse messages from QCOM yet.')
             return 0
+
+        if len(filter_dict['FO']) > 0 and len(filter_dict['FI']) > 0:
+            print('Invalid arguments in the filter dictionary! Check and rerun.')
+            return 0
+
+        filter_flag = 0  # 0: no filter, 1: filter out enabled, 2: filter in enabled.
+        if len(filter_dict['FO']) > 0:
+            filter_flag = 1
+            print('Filter Out enabled.')
+        elif len(filter_dict['FI']) > 0:
+            filter_flag = 2
+            print('Filter In enabled.')
+
+        print('===================')
 
         if save_to_file_flag:
             output_name = log_path[:-4]
@@ -76,19 +90,35 @@ class DebugLogDecoder(object):
                                                                                  header_list[6], header_list[7])
             if not save_to_file_flag:
                 print(header_print)
+            else:
+                f_write.write(header_print)
             # print(header_list)
             count = 0
+            filter_out_count = 0
             for line in log_file:
                 res = self.parse_one_msg(line)
+
+                if filter_flag == 1:  # filter out
+                    if res[3] in filter_dict['FO']:  # message name
+                        filter_out_count += 1
+                        continue
+                elif filter_flag == 2:  # filter in
+                    if res[3] not in filter_dict['FI']:  # message in the set
+                        continue
+
+                count += 1
                 formatted_res = self.packet_output_formatting(res)
                 if save_to_file_flag:
                     f_write.write(formatted_res + '\n')
-                    count += 1
                     if count % 1000 == 0:
                         print('{0} messages are processed.'.format(count))
                 else:
                     print(formatted_res)
             print('All messages are decoded.')
+            if filter_flag == 1:
+                print('Filter-out count:', filter_out_count)
+            elif filter_flag == 2:
+                print('Filter-in count:', count)
 
         if save_to_file_flag:
             f_write.flush()

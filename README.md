@@ -10,12 +10,18 @@ The simplest way to get the log file is to use the **UE Log Viewer** provided in
 
 So why don't we just use The Log Viewer to read the debug log? Well, IMHO the Log Viewer's user experience is bad. The first reason is the output format is ugly. It prints everything in a single line, which is hard to read. The second reason, the most important one, is that, you cannot search! It is so inconvenient for analysis. That's the motivation that I write this code snippet. 
 
-# Features and Limitations
+# Features
 
-- Currently, only [BC95](http://www.quectel.com/product/bc95.htm) is supported. Because [BC28](http://www.quectel.com/cn/product/bc28.htm) decoder is not ready yet. The UEs from other manufacturers are not applicable (Quectel only!). 
+- Currently, only [BC95](http://www.quectel.com/product/bc95.htm) debug log is supported. 
 - Only the data recorded by UE Log Viewer is supported. 
 - Save the decoded messages to files. 
-- Unable to decode **AT command** or any other application layer commands, because that requires another message decoder. Use UE Log Viewer for that. (Just right click and choose "filter in".)
+- Support filter-out (remove redundant messages) and filter-in (only keep those cared messages).
+- Easily change the output template. Revise `format_ordered_list()` function and `packet_output_formatting()` function accordingly.
+
+# Limitations
+
+- Because [BC28](http://www.quectel.com/cn/product/bc28.htm) decoder is not ready yet. The UEs from other manufacturers are not applicable (Quectel only!). 
+- Unable to decode messages read directly from the UE debog port. (No idea where is the start of a packet.)
 
 # Requirements
 
@@ -37,7 +43,6 @@ Your log file should look like this:
 > 
 
 There are two ';' separating the timestamp and the data. The hex data is conncected using a hyphen '-'.
-
 
 # Execution
 
