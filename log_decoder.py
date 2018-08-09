@@ -1,7 +1,10 @@
 import csv
 import xml.etree.cElementTree as ET
 from collections import OrderedDict
+import serial
+import time
 import os.path
+import seaborn
 
 class DebugLogDecoder(object):
 
@@ -30,8 +33,15 @@ class DebugLogDecoder(object):
                            22:'HOSTTEST_RX', 23:'NVCONFIG', 24:'NAS', 25:'IRMALLOC',
                            26:'PROTO', 27:'SMS', 28:'LPP', 29:'UICC', 30:'UE',
                            31:'NUM_STACK'}
+        self.src_layer_stat = dict((v,0) for k, v in self.layer_dict.items())
+        self.src_layer_stat['Unknown'] = 0
+        self.dest_layer_stat = self.src_layer_stat.copy()
+        self.src_dest_pair_stat = {}
+        print(self.src_layer_stat, self.dest_layer_stat)
 
     def xml_reader(self):
+        # Analyze the XML file for once.
+
         xml_path = self.decoder_dir + self.decoder_xml
         msg_tree = ET.parse(xml_path)
         root = msg_tree.getroot()
@@ -60,7 +70,7 @@ class DebugLogDecoder(object):
 
     def log_reader(self, log_path, filter_dict, is_from_log_viewer=True, save_to_file_flag=True):
         if not is_from_log_viewer:
-            print('Unable to parse messages from QCOM yet.')
+            print('Unable to parse messages from UART yet.')
             return 0
 
         if len(filter_dict['FO']) > 0 and len(filter_dict['FI']) > 0:
@@ -96,7 +106,7 @@ class DebugLogDecoder(object):
             count = 0
             filter_out_count = 0
             for line in log_file:
-                res = self.parse_one_msg(line)
+                res = self.parse_one_msg_ulv(line)
 
                 if filter_flag == 1:  # filter out
                     if res[3] in filter_dict['FO']:  # message name
@@ -114,7 +124,7 @@ class DebugLogDecoder(object):
                         print('{0} messages are processed.'.format(count))
                 else:
                     print(formatted_res)
-            print('All messages are decoded.')
+            print('All messages are decoded.\n')
             if filter_flag == 1:
                 print('Filter-out count:', filter_out_count)
             elif filter_flag == 2:
@@ -127,8 +137,9 @@ class DebugLogDecoder(object):
                 # print(res)
 
     def hex_to_decimal(self, hex_list):
-        # note that the string is LSB first, for example, 12-34-aa is 0xAA3412
+        # note that the string list is LSB first, for example, 12-34-aa is 0xAA3412
         if type(hex_list) == str:
+            # basically there is ONLY ONE byte.
             return int(hex_list, 16)
         hex_string = ''
         hex_list.reverse()
@@ -144,10 +155,9 @@ class DebugLogDecoder(object):
                 byte_str += b_ascii
         return bytearray.fromhex(byte_str).decode()
 
-    def parse_one_msg(self, buf_line):
+    def parse_one_msg_ulv(self, buf_line):  # Message recorded by UELogViewer
         if buf_line == '':
             return 0
-        display_list = []
         line_temp = buf_line.split(';')
         # Structure:
         # 1 line = timestamp + data flow
@@ -158,13 +168,21 @@ class DebugLogDecoder(object):
         time_stamp = line_temp[1]
         time_stamp = self.timestamp_parsing(time_stamp, is_beijing_time=True)
 
-
         data_flow = line_temp[2].split('-')
-        first_field = data_flow[0:4]  # no idea what it is
+
+        display_list = []
+        time_tick_hex = data_flow[0:4]  # time ticks, useless.
+        time_tick = self.hex_to_decimal(time_tick_hex)
         msg_counter_hex = data_flow[4:8]
         msg_counter = self.hex_to_decimal(msg_counter_hex)
 
-        msg_header = data_flow[8:16]
+        display_list += ['#{0}'.format(msg_counter), time_stamp, time_tick]
+        meaning_list = self.parse_one_msg_common(data_flow[8:])  # remove the parsed field
+        return display_list + meaning_list
+
+    def parse_one_msg_common(self, data_flow):
+        result_list = []
+        msg_header = data_flow[0:8]
 
         msg_id_hex = msg_header[0:4]
         msg_id_dec = str(self.hex_to_decimal(msg_id_hex))
@@ -174,6 +192,7 @@ class DebugLogDecoder(object):
             msg_name = self.message_dict[msg_id_dec][0].text
         else:
             msg_name = 'N/A'  # not in the XML decoder
+
         # parse msg source and destination
         msg_src_idx = self.hex_to_decimal(msg_header[4])
         msg_dest_idx = self.hex_to_decimal(msg_header[5])
@@ -187,10 +206,20 @@ class DebugLogDecoder(object):
             msg_src = self.layer_dict[msg_src_idx]
         except KeyError:
             msg_src = 'Unknown'
+
+        self.src_layer_stat[msg_src] += 1
         try:
             msg_dest = self.layer_dict[msg_dest_idx]
         except KeyError:
             msg_dest = 'Unknown'
+        self.dest_layer_stat[msg_dest] += 1
+
+        src_dest_pair = '{0}->{1}'.format(msg_src, msg_dest)
+        if src_dest_pair not in self.src_dest_pair_stat:
+            self.src_dest_pair_stat[src_dest_pair] = 1
+        else:
+            self.src_dest_pair_stat[src_dest_pair] += 1
+
         # print(msg_src, msg_dest, msg_length)
 
         decoded_msg = ''
@@ -198,14 +227,14 @@ class DebugLogDecoder(object):
         # Most important part: parse the payload
         if msg_length > 0 and msg_name != 'N/A':
             data_flow[-1] = data_flow[-1].replace('\n', '')
-            payload_list = data_flow[16:]
+            payload_list = data_flow[8:]  # actual data after the header field
             # print(self.message_dict[msg_id_dec][6].tag)
             if self.message_dict[msg_id_dec][6].tag == self.tag_name_prefix + 'Fields':
                 decoded_msg = self.parse_fields(payload_list, self.message_dict[msg_id_dec][6])
 
-        display_list += ['#{0}'.format(msg_counter), time_stamp, msg_id_dec, msg_name,
+        result_list += [msg_id_dec, msg_name,
                          msg_src, msg_dest, msg_length, decoded_msg]
-        return display_list
+        return result_list
 
     def parse_fields(self, data_flow, node):
         initial_point = 8  # constant
@@ -287,7 +316,6 @@ class DebugLogDecoder(object):
                 return enum[0].text
         return 'Enum Not Found'
 
-
     def layer_indexing(self, decimal_enum):
         return self.layer_dict[decimal_enum]
 
@@ -299,7 +327,6 @@ class DebugLogDecoder(object):
             hour = (int(timestamp.split(':')[0]) + 12) % 24
             timestamp = str(hour) + timestamp[2:]
         return timestamp  # the date is not important, just take a look into the log
-
 
     def packet_output_formatting(self, info_list):
         if info_list[3] == 'N/A':
@@ -344,3 +371,153 @@ class DebugLogDecoder(object):
                 one_line += '\n'
             return_msg += one_line
         return return_msg
+
+    def export_stat_csv(self, output_name_prefix):
+        stat_mat = []
+        ignored_layers = []#['LL1', 'UICC', 'DSP', '0 count']
+
+        print('Source Layer stats:')
+        for key in sorted(self.src_layer_stat.keys()):
+            val = self.src_layer_stat[key]
+            if key in ignored_layers:
+                continue
+            if '0 count' in ignored_layers:
+                if val == 0:
+                    continue
+            print('{0}: {1}'.format(key, val))
+            stat_mat.append([key, val, 'src'])
+
+        # print(my_decoder.src_layer_stat)
+        print('======\nDestination Layer stats')
+        # print(my_decoder.dest_layer_stat)
+        for key in sorted(self.dest_layer_stat.keys()):
+            val = self.dest_layer_stat[key]
+            if key in ignored_layers:
+                continue
+            if '0 count' in ignored_layers:
+                if val == 0:
+                    continue
+            print('{0}: {1}'.format(key, val))
+            stat_mat.append([key, val, 'dest'])
+
+        with open(self.decode_output_dir + output_name_prefix + '_msg_layer_stats.csv', 'w', newline='') as my_file:
+            my_csv_writer = csv.writer(my_file)
+            my_csv_writer.writerow(['layer_name', 'count', 'from'])
+            for row in stat_mat:
+                my_csv_writer.writerow(row)
+            my_file.flush()
+            my_file.close()
+
+    def export_src_dest_pair(self, output_name_prefix):
+        ignored_pairs = ['DSP->LL1', 'LL1->DSP', 'LL1->LL1', 'UICC->UICC']
+
+        print('Total number of available msg type:', len(self.src_dest_pair_stat))
+        with open(self.decode_output_dir + output_name_prefix + '_pair_stats.csv' ,'w', newline='') as my_file:
+            my_csv_writer = csv.writer(my_file)
+            my_csv_writer.writerow(['src->dest', 'count'])
+            for key in sorted(self.src_dest_pair_stat.keys()):
+                if key in ignored_pairs:
+                    continue
+                val = self.src_dest_pair_stat[key]
+                print('{0}: {1}'.format(key, val))
+                my_csv_writer.writerow([key, val])
+            my_file.flush()
+            my_file.close()
+
+
+class LiveUartLogDecoder(DebugLogDecoder):
+
+    def __init__(self, dev_name, uart_port):
+        super(LiveUartLogDecoder, self).__init__(dev_name)
+        self.ue_dbg_port = uart_port
+        self.dbg_port_handler = serial.Serial(self.ue_dbg_port, 921600)
+        self.dbg_run_flag = True
+
+    def read_byte(self, num):
+        # read byte and format it.
+        return self.dbg_port_handler.read(num).hex().upper()  # hex() converts byte to str.
+
+    def dbg_streaming(self):
+        states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT':2, 'TICK': 3,
+                  'DATA': 5, 'LENGTH': 4, 'FINISHED': 6}  # UART state machine
+        str_buf = []
+        st = states['PREAMBLE']
+
+        # initialize local variable to prevent warning.
+        seq_num = 0
+        time_tick = 0
+        parsed_msg = ''
+        time_stamp = 0
+        payload_len = 1
+
+        empty_msg_dict = {'Sequence number': 0, 'Time tick': 0, 'Timestamp': 0, 'Display list': ''}
+        parsed_log_dict = empty_msg_dict.copy()
+
+        while self.dbg_run_flag:
+            # run until the flag is set.
+            if st == states['PREAMBLE']:
+                new_byte = self.read_byte(1)
+                # print(new_byte)
+                if new_byte == '25':  # '%'
+                    str_buf.append(new_byte)
+                    new_byte = self.read_byte(4)
+                    if new_byte == '4442473A':  # 'DBG:'
+                        str_buf.append(new_byte)
+                        st = states['COUNT']
+                        time_stamp = time.time()
+                        parsed_log_dict['Timestamp'] = time_stamp
+                    else:
+                        str_buf = []
+                else:
+                    str_buf = []  # empty the buf and restart
+                # str_buf.append(new_byte)
+                # if len(str_buf) > 200:  # read
+                #     print('Read too m')
+                #     self.dbg_run_flag = False
+            elif st == states['COUNT']:
+                str_buf = []
+                for i in range(4):
+                    str_buf.append(self.read_byte(1))
+                num_temp = self.hex_to_decimal(str_buf)
+                if num_temp - seq_num != 1:
+                    print('INFO: Inconsistent sequence number detected!')
+                seq_num = num_temp
+                parsed_log_dict['Sequence number'] = seq_num  # update the dict
+                # print(str_buf, seq_num)
+                str_buf = []
+                st = states['TICK']
+            elif st == states['TICK']:
+                str_buf = []
+                for i in range(4):
+                    str_buf.append(self.read_byte(1))
+                time_tick = self.hex_to_decimal(str_buf)
+                parsed_log_dict['Time tick'] = time_tick  # update the dict
+                dummy = self.read_byte(4)  # neglect the useless bytes.
+                st = states['LENGTH']
+            elif st == states['LENGTH']:
+                str_buf = []
+                for i in range(2):
+                    str_buf.append(self.read_byte(1))
+                payload_len = self.hex_to_decimal(str_buf)
+                st = states['DATA']
+            elif st == states['DATA']:
+                str_buf = []
+                for i in range(payload_len):
+                    str_buf.append(self.read_byte(1))
+                disp_msg = self.parse_one_msg_common(str_buf)
+                parsed_log_dict['Display list'] = disp_msg
+                print(parsed_log_dict)
+                st = states['FINISHED']
+            elif st == states['FINISHED']:
+                parsed_log_dict = empty_msg_dict.copy()
+                st = states['PREAMBLE']  # recycle the UART state machine
+            elif st == states['UNKNOWN']:
+                print('Something wrong happens. Reset to PREAMBLE state.')
+                st = states['PREAMBLE']
+
+        str_pnt = ''
+        for h in str_buf:
+            str_pnt += h + ' '
+        print(str_pnt)
+
+
