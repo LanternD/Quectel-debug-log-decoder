@@ -6,13 +6,16 @@ import time
 import os.path
 import seaborn
 
-class DebugLogDecoder(object):
 
-    def __init__(self, device_name):
+class DebugLogDecoder(object):
+    # Load the XML file and then parse and format the logs.
+    def __init__(self, device_name, filter_dict):
 
         self.device_name = device_name.upper()
+        self.filter_dict = filter_dict
+        self.filter_flag = self.filter_dict_checker()  # 0: no filter, 1: filter out enabled, 2: filter in enabled.
+
         self.decoder_dir = './decoders/'
-        self.log_dir = './log_files/'
         self.decode_output_dir = './output_files/'
 
         if self.device_name == 'BC28':
@@ -20,28 +23,28 @@ class DebugLogDecoder(object):
         elif self.device_name == 'BC95':
             self.decoder_xml = 'messages_bc95.xml'
         else:
+            print('Unsupported device. Change the device or check the spell.')
             self.decoder_xml = None
         self.tag_name_prefix = '{http://tempuri.org/xmlDefinition.xsd}'
         self.message_dict = {}
         self.msg_buffer = []
 
-        self.layer_dict = {0:'INVALID', 1:'DSP', 2:'LL1', 3:'L2_UL', 4:'L2_DL',
-                           5:'MAC_DL', 6:'MAC_UL', 7:'RLC_UL', 8:'RLC_DL',
-                           9:'PDCP_DL', 10:'PDCP_UL', 11:'RRC', 12:'EMMSM',
-                           13:'MN', 14:'AT', 15:'PDH', 16:'LWIP', 17:'SIM',
-                           18:'LOG', 19:'MONITOR', 20:'HOSTTEST_RF', 21:'HOSTTEST_TX',
-                           22:'HOSTTEST_RX', 23:'NVCONFIG', 24:'NAS', 25:'IRMALLOC',
-                           26:'PROTO', 27:'SMS', 28:'LPP', 29:'UICC', 30:'UE',
-                           31:'NUM_STACK'}
-        self.src_layer_stat = dict((v,0) for k, v in self.layer_dict.items())
+        self.layer_dict = {0: 'INVALID', 1: 'DSP', 2: 'LL1', 3: 'L2_UL', 4: 'L2_DL',
+                           5: 'MAC_DL', 6: 'MAC_UL', 7: 'RLC_UL', 8: 'RLC_DL',
+                           9: 'PDCP_DL', 10: 'PDCP_UL', 11: 'RRC', 12: 'EMMSM',
+                           13: 'MN', 14: 'AT', 15: 'PDH', 16: 'LWIP', 17: 'SIM',
+                           18: 'LOG', 19: 'MONITOR', 20: 'HOSTTEST_RF', 21: 'HOSTTEST_TX',
+                           22: 'HOSTTEST_RX', 23: 'NVCONFIG', 24: 'NAS', 25: 'IRMALLOC',
+                           26: 'PROTO', 27: 'SMS', 28: 'LPP', 29: 'UICC', 30: 'UE',
+                           31: 'NUM_STACK'}
+        self.src_layer_stat = dict((v, 0) for k, v in self.layer_dict.items())
         self.src_layer_stat['Unknown'] = 0
         self.dest_layer_stat = self.src_layer_stat.copy()
         self.src_dest_pair_stat = {}
-        print(self.src_layer_stat, self.dest_layer_stat)
+        # print(self.src_layer_stat, self.dest_layer_stat)
 
-    def xml_reader(self):
-        # Analyze the XML file for once.
-
+    def xml_loader(self):
+        # Load the XML file for once.
         xml_path = self.decoder_dir + self.decoder_xml
         msg_tree = ET.parse(xml_path)
         root = msg_tree.getroot()
@@ -68,73 +71,18 @@ class DebugLogDecoder(object):
         # print(type_set)
         print('Available types:', len(type_set))
 
-    def log_reader(self, log_path, filter_dict, is_from_log_viewer=True, save_to_file_flag=True):
-        if not is_from_log_viewer:
-            print('Unable to parse messages from UART yet.')
-            return 0
+    def filter_dict_checker(self):
 
-        if len(filter_dict['FO']) > 0 and len(filter_dict['FI']) > 0:
-            print('Invalid arguments in the filter dictionary! Check and rerun.')
-            return 0
-
-        filter_flag = 0  # 0: no filter, 1: filter out enabled, 2: filter in enabled.
-        if len(filter_dict['FO']) > 0:
+        if len(self.filter_dict['FO']) > 0 and len(self.filter_dict['FI']) > 0:
+            raise ValueError('Invalid arguments in the filter dictionary! Check and rerun.')
+        filter_flag = 0
+        if len(self.filter_dict['FO']) > 0:
             filter_flag = 1
-            print('Filter Out enabled.')
-        elif len(filter_dict['FI']) > 0:
+            print('Filter-Out enabled.')
+        elif len(self.filter_dict['FI']) > 0:
             filter_flag = 2
-            print('Filter In enabled.')
-
-        print('===================')
-
-        if save_to_file_flag:
-            output_name = log_path[:-4]
-            f_write = open(self.decode_output_dir + 'decoded_' + output_name + '.txt', 'w', newline='')
-
-        with open(self.log_dir + log_path, 'r', encoding='utf-8') as log_file:
-            header_list = ['Seq ID', 'Timestamp', 'Decimal ID', 'Msg ID', 'Source',
-                           'Destination', 'Length', 'Formatted Output']
-            header_print = '{0}\t{1}\t\t{3}({2})\t\t{4} -> {5}\t{6}\t{7}'.format(header_list[0], header_list[1],
-                                                                                 header_list[2], header_list[3],
-                                                                                 header_list[4], header_list[5],
-                                                                                 header_list[6], header_list[7])
-            if not save_to_file_flag:
-                print(header_print)
-            else:
-                f_write.write(header_print)
-            # print(header_list)
-            count = 0
-            filter_out_count = 0
-            for line in log_file:
-                res = self.parse_one_msg_ulv(line)
-
-                if filter_flag == 1:  # filter out
-                    if res[3] in filter_dict['FO']:  # message name
-                        filter_out_count += 1
-                        continue
-                elif filter_flag == 2:  # filter in
-                    if res[3] not in filter_dict['FI']:  # message in the set
-                        continue
-
-                count += 1
-                formatted_res = self.packet_output_formatting(res)
-                if save_to_file_flag:
-                    f_write.write(formatted_res + '\n')
-                    if count % 1000 == 0:
-                        print('{0} messages are processed.'.format(count))
-                else:
-                    print(formatted_res)
-            print('All messages are decoded.\n')
-            if filter_flag == 1:
-                print('Filter-out count:', filter_out_count)
-            elif filter_flag == 2:
-                print('Filter-in count:', count)
-
-        if save_to_file_flag:
-            f_write.flush()
-            f_write.close()
-            print('Results have been write to file.')
-                # print(res)
+            print('Filter-In enabled.')
+        return filter_flag
 
     def hex_to_decimal(self, hex_list):
         # note that the string list is LSB first, for example, 12-34-aa is 0xAA3412
@@ -176,7 +124,7 @@ class DebugLogDecoder(object):
         msg_counter_hex = data_flow[4:8]
         msg_counter = self.hex_to_decimal(msg_counter_hex)
 
-        display_list += ['#{0}'.format(msg_counter), time_stamp, time_tick]
+        display_list += [msg_counter, time_stamp, time_tick]
         meaning_list = self.parse_one_msg_common(data_flow[8:])  # remove the parsed field
         return display_list + meaning_list
 
@@ -233,7 +181,7 @@ class DebugLogDecoder(object):
                 decoded_msg = self.parse_fields(payload_list, self.message_dict[msg_id_dec][6])
 
         result_list += [msg_id_dec, msg_name,
-                         msg_src, msg_dest, msg_length, decoded_msg]
+                        msg_src, msg_dest, msg_length, decoded_msg]
         return result_list
 
     def parse_fields(self, data_flow, node):
@@ -280,7 +228,7 @@ class DebugLogDecoder(object):
                         payload_dict[field_name] = info
                     # print(info)
                     elif field_type == 'c_short':
-                    # signed int. eg: 65535 should be converted to -1
+                        # signed int. eg: 65535 should be converted to -1
                         if info > 65536//2:
                             info -= 65536
                         payload_dict[field_name] = str(info)
@@ -333,20 +281,21 @@ class DebugLogDecoder(object):
             return info_list[0] + ' Invalid Msg\n'  # this is an invalid packet. Remove these two lines if you want them.
         ret_msg = ''
         # Deal with the header
-        header_list = info_list[:-1]
-        header_print = '{0}\t{1}\t\t{3}({2})\t\t{4} -> {5}\t{6}'.format(header_list[0], header_list[1],
-                                                                             header_list[2], header_list[3],
-                                                                             header_list[4], header_list[5],
-                                                                             header_list[6])
+        header_list = info_list[:-1]  # order: seq_num, time, time tick, msg_id_decimal,
+        # msg name, src, dest, msg length
+        header_print = '#{0}\t{1}\t{2}\t{4}({3})\t\t{5} -> {6}\t{7}'.format(header_list[0], header_list[1],
+                                                                           header_list[2], header_list[3],
+                                                                           header_list[4], header_list[5],
+                                                                           header_list[6], header_list[7])
         ret_msg += header_print
         ret_msg += '\n'
         # The most important one
         msg_ordered_dict = info_list[-1]
-        formatted_ordered_list = self.format_ordered_list(0, msg_ordered_dict)
+        formatted_ordered_list = self.format_ordered_dict(0, msg_ordered_dict)
         ret_msg += formatted_ordered_list
         return ret_msg
 
-    def format_ordered_list(self, level, odict):
+    def format_ordered_dict(self, level, odict):
         return_msg = ''
         # print(odict)
         for element in odict:
@@ -363,7 +312,7 @@ class DebugLogDecoder(object):
                 one_line = ' {0}{1}'.format(level*'\t', linefy)
             elif type(field_value) == OrderedDict:
                 # print('>>> Ordered Dict.')
-                another_dict = self.format_ordered_list(level+1, field_value)
+                another_dict = self.format_ordered_dict(level + 1, field_value)
                 one_line = ' {0}{1}: \n{2}'.format(level*'\t', field_key, another_dict)
             else:
                 one_line = '??????'
@@ -374,7 +323,7 @@ class DebugLogDecoder(object):
 
     def export_stat_csv(self, output_name_prefix):
         stat_mat = []
-        ignored_layers = []#['LL1', 'UICC', 'DSP', '0 count']
+        ignored_layers = []  # ['LL1', 'UICC', 'DSP', '0 count']
 
         print('Source Layer stats:')
         for key in sorted(self.src_layer_stat.keys()):
@@ -412,7 +361,7 @@ class DebugLogDecoder(object):
         ignored_pairs = ['DSP->LL1', 'LL1->DSP', 'LL1->LL1', 'UICC->UICC']
 
         print('Total number of available msg type:', len(self.src_dest_pair_stat))
-        with open(self.decode_output_dir + output_name_prefix + '_pair_stats.csv' ,'w', newline='') as my_file:
+        with open(self.decode_output_dir + output_name_prefix + '_pair_stats.csv', 'w', newline='') as my_file:
             my_csv_writer = csv.writer(my_file)
             my_csv_writer.writerow(['src->dest', 'count'])
             for key in sorted(self.src_dest_pair_stat.keys()):
@@ -425,20 +374,80 @@ class DebugLogDecoder(object):
             my_file.close()
 
 
+class UlvLogDecoder(DebugLogDecoder):
+
+    def __init__(self, dev_name, filter_dict):
+        super(UlvLogDecoder, self).__init__(dev_name, filter_dict)
+        self.log_dir = './log_files/'
+
+    def log_reader(self, log_path, save_to_file_flag=True):
+
+        if save_to_file_flag:
+            output_name = log_path[:-4]
+            f_write = open(self.decode_output_dir + 'decoded_' + output_name + '.txt', 'w', newline='')
+
+        with open(self.log_dir + log_path, 'r', encoding='utf-8') as log_file:
+            # print or write the very first line.
+            header_list = ['Seq ID', 'Timestamp', 'Time tick', 'Decimal ID', 'Msg ID', 'Source',
+                           'Destination', 'Length', 'Formatted Output']
+            header_print = '{0}\t{1}\t\t{3}({2})\t\t{4} -> {5}\t{6}\t{7}'.format(header_list[0], header_list[1],
+                                                                                 header_list[2], header_list[3],
+                                                                                 header_list[4], header_list[5],
+                                                                                 header_list[6], header_list[7])
+            if not save_to_file_flag:
+                print(header_print)
+            else:
+                f_write.write(header_print)
+            # print(header_list)
+            count = 0
+            filter_out_count = 0
+            for line in log_file:
+                res = self.parse_one_msg_ulv(line)
+
+                if self.filter_flag == 1:  # filter out
+                    if res[4] in self.filter_dict['FO']:  # message name
+                        filter_out_count += 1
+                        continue
+                elif self.filter_flag == 2:  # filter in
+                    if res[4] not in self.filter_dict['FI']:  # message in the set
+                        continue
+
+                count += 1
+                formatted_res = self.packet_output_formatting(res)
+                if save_to_file_flag:
+                    f_write.write(formatted_res + '\n')
+                    if count % 1000 == 0:
+                        print('{0} messages are processed.'.format(count))
+                else:
+                    print(formatted_res)  # the actual meanings of each packet
+            print('All messages are decoded.\n')
+            if self.filter_flag == 1:
+                print('Filter-out count:', filter_out_count)
+            elif self.filter_flag == 2:
+                print('Filter-in count:', count)
+
+        if save_to_file_flag:
+            f_write.flush()
+            f_write.close()
+            print('Results have been write to file.')
+            # print(res)
+
+
 class LiveUartLogDecoder(DebugLogDecoder):
 
-    def __init__(self, dev_name, uart_port):
-        super(LiveUartLogDecoder, self).__init__(dev_name)
+    def __init__(self, dev_name, uart_port, filter_dict, config):
+        super(LiveUartLogDecoder, self).__init__(dev_name, filter_dict)
         self.ue_dbg_port = uart_port
-        self.dbg_port_handler = serial.Serial(self.ue_dbg_port, 921600)
+        self.dbg_port_handler = serial.Serial(self.ue_dbg_port, 921600)  # fixed baudrate
         self.dbg_run_flag = True
+        self.config = config
 
     def read_byte(self, num):
         # read byte and format it.
         return self.dbg_port_handler.read(num).hex().upper()  # hex() converts byte to str.
 
     def dbg_streaming(self):
-        states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT':2, 'TICK': 3,
+        states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT': 2, 'TICK': 3,
                   'DATA': 5, 'LENGTH': 4, 'FINISHED': 6}  # UART state machine
         str_buf = []
         st = states['PREAMBLE']
@@ -447,11 +456,11 @@ class LiveUartLogDecoder(DebugLogDecoder):
         seq_num = 0
         time_tick = 0
         parsed_msg = ''
-        time_stamp = 0
+        time_stamp = .0
         payload_len = 1
 
-        empty_msg_dict = {'Sequence number': 0, 'Time tick': 0, 'Timestamp': 0, 'Display list': ''}
-        parsed_log_dict = empty_msg_dict.copy()
+        empty_msg_list = [0, 0, .0, []]  # order: seq_num, timestamp
+        parsed_log_dict = empty_msg_list.copy()
 
         while self.dbg_run_flag:
             # run until the flag is set.
@@ -504,12 +513,13 @@ class LiveUartLogDecoder(DebugLogDecoder):
                 str_buf = []
                 for i in range(payload_len):
                     str_buf.append(self.read_byte(1))
-                disp_msg = self.parse_one_msg_common(str_buf)
-                parsed_log_dict['Display list'] = disp_msg
-                print(parsed_log_dict)
+                disp_list = self.parse_one_msg_common(str_buf)  # order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                parsed_log_dict['Display list'] = disp_list
+                self.format_parsed_log_dict(parsed_log_dict)
+                # print(parsed_log_dict)
                 st = states['FINISHED']
             elif st == states['FINISHED']:
-                parsed_log_dict = empty_msg_dict.copy()
+                parsed_log_dict = empty_msg_list.copy()
                 st = states['PREAMBLE']  # recycle the UART state machine
             elif st == states['UNKNOWN']:
                 print('Something wrong happens. Reset to PREAMBLE state.')
@@ -520,4 +530,18 @@ class LiveUartLogDecoder(DebugLogDecoder):
             str_pnt += h + ' '
         print(str_pnt)
 
+    def format_parsed_log_dict(self, log_dict):
+        # convert the dict to actual messages.
+        timestamp = log_dict['Timestamp']
+        ts_formatted = time.strftime(self.config['Time format'], time.localtime(timestamp))
+        disp_list = log_dict['Display list']
+        msg_id_dec = disp_list[0]
+        msg_name = disp_list[1]
+        msg_src = disp_list[2]
+        msg_dest = disp_list[3]
+        msg_len = disp_list[4]
+        decoded_msg = disp_list[5]
 
+        list_tmp = [log_dict['Sequence number'], ts_formatted, log_dict['Time tick'], msg_name, msg_id_dec, msg_src, msg_dest, msg_len]
+        print(heading)
+        print(decoded_msg)
