@@ -17,6 +17,7 @@ class DebugLogDecoder(object):
 
         self.decoder_dir = './decoders/'
         self.decode_output_dir = './output_files/'
+        self.log_dir = './log_files/'
 
         if self.device_name == 'BC28':
             self.decoder_xml = 'messages_bc28.xml'
@@ -103,30 +104,6 @@ class DebugLogDecoder(object):
                 byte_str += b_ascii
         return bytearray.fromhex(byte_str).decode()
 
-    def parse_one_msg_ulv(self, buf_line):  # Message recorded by UELogViewer
-        if buf_line == '':
-            return 0
-        line_temp = buf_line.split(';')
-        # Structure:
-        # 1 line = timestamp + data flow
-        # data flow = msg header + msg payload
-        # msg header = msg id + source + destination + length
-        # msg payload are decoded based on the XML.
-
-        time_stamp = line_temp[1]
-        time_stamp = self.timestamp_parsing(time_stamp, is_beijing_time=True)
-
-        data_flow = line_temp[2].split('-')
-
-        display_list = []
-        time_tick_hex = data_flow[0:4]  # time ticks, useless.
-        time_tick = self.hex_to_decimal(time_tick_hex)
-        msg_counter_hex = data_flow[4:8]
-        msg_counter = self.hex_to_decimal(msg_counter_hex)
-
-        display_list += [msg_counter, time_stamp, time_tick]
-        meaning_list = self.parse_one_msg_common(data_flow[8:])  # remove the parsed field
-        return display_list + meaning_list
 
     def parse_one_msg_common(self, data_flow):
         result_list = []
@@ -170,7 +147,7 @@ class DebugLogDecoder(object):
 
         # print(msg_src, msg_dest, msg_length)
 
-        decoded_msg = ''
+        decoded_msg = ''  # by default it is a str message, but it can be an ordered dict as well.
 
         # Most important part: parse the payload
         if msg_length > 0 and msg_name != 'N/A':
@@ -378,7 +355,7 @@ class UlvLogDecoder(DebugLogDecoder):
 
     def __init__(self, dev_name, filter_dict):
         super(UlvLogDecoder, self).__init__(dev_name, filter_dict)
-        self.log_dir = './log_files/'
+
 
     def log_reader(self, log_path, save_to_file_flag=True):
 
@@ -390,10 +367,11 @@ class UlvLogDecoder(DebugLogDecoder):
             # print or write the very first line.
             header_list = ['Seq ID', 'Timestamp', 'Time tick', 'Decimal ID', 'Msg ID', 'Source',
                            'Destination', 'Length', 'Formatted Output']
-            header_print = '{0}\t{1}\t\t{3}({2})\t\t{4} -> {5}\t{6}\t{7}'.format(header_list[0], header_list[1],
+            header_print = '{0}\t{1}\t{2}\t{4}({3})\t\t{5} -> {6}\t{7}\t{8}'.format(header_list[0], header_list[1],
                                                                                  header_list[2], header_list[3],
                                                                                  header_list[4], header_list[5],
-                                                                                 header_list[6], header_list[7])
+                                                                                 header_list[6], header_list[7],
+                                                                                    header_list[8])
             if not save_to_file_flag:
                 print(header_print)
             else:
@@ -413,7 +391,7 @@ class UlvLogDecoder(DebugLogDecoder):
                         continue
 
                 count += 1
-                formatted_res = self.packet_output_formatting(res)
+                formatted_res = self.packet_output_formatting(res )
                 if save_to_file_flag:
                     f_write.write(formatted_res + '\n')
                     if count % 1000 == 0:
@@ -432,24 +410,72 @@ class UlvLogDecoder(DebugLogDecoder):
             print('Results have been write to file.')
             # print(res)
 
+    def parse_one_msg_ulv(self, buf_line):  # Message recorded by UELogViewer
+        if buf_line == '':
+            return 0
+        line_temp = buf_line.split(';')
+        # Structure:
+        # 1 line = timestamp + data flow
+        # data flow = msg header + msg payload
+        # msg header = msg id + source + destination + length
+        # msg payload are decoded based on the XML.
 
-class LiveUartLogDecoder(DebugLogDecoder):
+        time_stamp = line_temp[1]
+        time_stamp = self.timestamp_parsing(time_stamp, is_beijing_time=True)
+
+        data_flow = line_temp[2].split('-')
+
+        display_list = []
+        time_tick_hex = data_flow[0:4]  # time ticks, useless.
+        time_tick = self.hex_to_decimal(time_tick_hex)
+        msg_counter_hex = data_flow[4:8]
+        msg_counter = self.hex_to_decimal(msg_counter_hex)
+
+        display_list += [msg_counter, time_stamp, time_tick]
+        meaning_list = self.parse_one_msg_common(data_flow[8:])  # remove the parsed field
+        return display_list + meaning_list
+
+
+class UartOnlineLogDecoder(DebugLogDecoder):
 
     def __init__(self, dev_name, uart_port, filter_dict, config):
-        super(LiveUartLogDecoder, self).__init__(dev_name, filter_dict)
+        super(UartOnlineLogDecoder, self).__init__(dev_name, filter_dict)
         self.ue_dbg_port = uart_port
         self.dbg_port_handler = serial.Serial(self.ue_dbg_port, 921600)  # fixed baudrate
         self.dbg_run_flag = True
         self.config = config
+        self.f_exp = None
+        self.f_exp_csv_writer = None
+
+        self.filter_out_count = 0
+        self.filter_in_count = 0
+
+        file_time = time.strftime(self.config['Export filename time prefix'], time.localtime(time.time()))
+        raw_log_path = '{0}{1}_{2}_raw.txt'.format(self.log_dir, file_time, self.device_name)
+        self.f_raw = open(raw_log_path, 'w', newline='')
+        self.f_raw_csv_writer = csv.writer(self.f_raw)
+
+        if self.config['Export to file']:
+
+            if self.config['Export format'] not in {'txt', 'csv'}:
+                raise ValueError('Export file format unknown. \'txt\' and \'csv\' only.')
+
+            file_path = '{0}{1}_{2}_{3}.{4}'.format(self.decode_output_dir, file_time,
+                                                   self.device_name, 'OL', self.config['Export format'])
+            self.f_exp = open(file_path, 'w', newline='')
+            if self.config['Export format'] == 'csv':
+                self.f_exp_csv_writer = csv.writer(self.f_exp)
+
 
     def read_byte(self, num):
-        # read byte and format it.
+        # read byte from debug UART and format it.
         return self.dbg_port_handler.read(num).hex().upper()  # hex() converts byte to str.
 
     def dbg_streaming(self):
         states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT': 2, 'TICK': 3,
                   'DATA': 5, 'LENGTH': 4, 'FINISHED': 6}  # UART state machine
         str_buf = []
+        raw_buf = []
         st = states['PREAMBLE']
 
         # initialize local variable to prevent warning.
@@ -458,9 +484,10 @@ class LiveUartLogDecoder(DebugLogDecoder):
         parsed_msg = ''
         time_stamp = .0
         payload_len = 1
+        app_rep_flag = False
 
-        empty_msg_list = [0, 0, .0, []]  # order: seq_num, timestamp
-        parsed_log_dict = empty_msg_list.copy()
+        empty_msg_list = [0, 0, .0]  # order: seq_num, timestamp, time tick,
+        parsed_log_list = empty_msg_list.copy()
 
         while self.dbg_run_flag:
             # run until the flag is set.
@@ -474,7 +501,7 @@ class LiveUartLogDecoder(DebugLogDecoder):
                         str_buf.append(new_byte)
                         st = states['COUNT']
                         time_stamp = time.time()
-                        parsed_log_dict['Timestamp'] = time_stamp
+                        parsed_log_list[1] = time_stamp
                     else:
                         str_buf = []
                 else:
@@ -491,7 +518,7 @@ class LiveUartLogDecoder(DebugLogDecoder):
                 if num_temp - seq_num != 1:
                     print('INFO: Inconsistent sequence number detected!')
                 seq_num = num_temp
-                parsed_log_dict['Sequence number'] = seq_num  # update the dict
+                parsed_log_list[0] = seq_num  # update the dict
                 # print(str_buf, seq_num)
                 str_buf = []
                 st = states['TICK']
@@ -500,8 +527,13 @@ class LiveUartLogDecoder(DebugLogDecoder):
                 for i in range(4):
                     str_buf.append(self.read_byte(1))
                 time_tick = self.hex_to_decimal(str_buf)
-                parsed_log_dict['Time tick'] = time_tick  # update the dict
+                parsed_log_list[2] = time_tick  # update the dict
                 dummy = self.read_byte(4)  # neglect the useless bytes.
+                if dummy[0] == 'A':  # this is an application report message
+                    app_rep_flag = True
+                    parsed_log_list.append('APPLICATION_REPORT')
+                else:
+                    app_rep_flag = False
                 st = states['LENGTH']
             elif st == states['LENGTH']:
                 str_buf = []
@@ -513,35 +545,97 @@ class LiveUartLogDecoder(DebugLogDecoder):
                 str_buf = []
                 for i in range(payload_len):
                     str_buf.append(self.read_byte(1))
-                disp_list = self.parse_one_msg_common(str_buf)  # order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
-                parsed_log_dict['Display list'] = disp_list
-                self.format_parsed_log_dict(parsed_log_dict)
-                # print(parsed_log_dict)
+                raw_buf = parsed_log_list.copy()
+                raw_buf.append(self.byte_concatenation(str_buf))
+                self.f_raw_csv_writer.writerow(raw_buf)
+                if app_rep_flag is True:
+                    str_buf.reverse()  # there is another reverse in the hex to ascii function.
+                    parsed_log_list.append(self.hex_to_ascii(str_buf))
+                    self.application_report_export_processing(parsed_log_list)
+                else:
+                    disp_list = self.parse_one_msg_common(str_buf)  # order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                    parsed_log_list += disp_list
+                    self.display_export_processing(parsed_log_list)
+                    # print(parsed_log_dict)
                 st = states['FINISHED']
             elif st == states['FINISHED']:
-                parsed_log_dict = empty_msg_list.copy()
+                parsed_log_list = empty_msg_list.copy()
+                self.f_exp.flush()
                 st = states['PREAMBLE']  # recycle the UART state machine
             elif st == states['UNKNOWN']:
                 print('Something wrong happens. Reset to PREAMBLE state.')
                 st = states['PREAMBLE']
 
-        str_pnt = ''
-        for h in str_buf:
-            str_pnt += h + ' '
-        print(str_pnt)
+    def display_export_processing(self, info_list):
 
-    def format_parsed_log_dict(self, log_dict):
-        # convert the dict to actual messages.
-        timestamp = log_dict['Timestamp']
-        ts_formatted = time.strftime(self.config['Time format'], time.localtime(timestamp))
-        disp_list = log_dict['Display list']
-        msg_id_dec = disp_list[0]
-        msg_name = disp_list[1]
-        msg_src = disp_list[2]
-        msg_dest = disp_list[3]
-        msg_len = disp_list[4]
-        decoded_msg = disp_list[5]
+        res = self.packet_output_formatting(info_list)
 
-        list_tmp = [log_dict['Sequence number'], ts_formatted, log_dict['Time tick'], msg_name, msg_id_dec, msg_src, msg_dest, msg_len]
-        print(heading)
-        print(decoded_msg)
+        is_filtered = self.filter_checker(info_list[4])
+
+        if is_filtered is False:
+            print(res)
+        # apply the filter, exporting
+        if self.config['Export to file']:
+            if self.config['Export filtered logs'] is True:
+                # means write every log
+                is_filtered = False
+
+            if is_filtered is False:
+                # this log need to be export
+                if self.config['Export format'] == 'txt':
+                    self.f_exp.write(res)
+                elif self.config['Export format'] == 'csv':
+                    self.f_exp_csv_writer.writerow(info_list)
+
+    def application_report_export_processing(self, info_list):
+        first_line = '#{0}\t{1}\t{2}\t{3}\t\n'.format(info_list[0], info_list[1],
+                                                      info_list[2], info_list[3])
+        whole_app_rep = first_line + info_list[4]  # the 4th element is the actual msg
+        # Check filter
+        is_filtered = self.filter_checker('APPLICATION_REPORT')
+        if is_filtered is False:
+            print(whole_app_rep)
+
+        if self.config['Export to file']:
+            if self.config['Export filtered logs'] is True:
+                # means write every log
+                is_filtered = False
+
+            if is_filtered is False:
+                # this log need to be export
+                if self.config['Export format'] == 'txt':
+                    self.f_exp.write(whole_app_rep)
+                elif self.config['Export format'] == 'csv':
+                    self.f_exp_csv_writer.writerow(info_list)
+
+    def filter_checker(self, log_name):
+
+        is_filtered_flag = False  # True: not wanted log; False: wanted log.
+        # apply the filter, printing
+        if self.filter_flag == 1:  # filter out
+            if log_name in self.filter_dict['FO']:  # message name
+                is_filtered_flag = True
+                self.filter_out_count += 1
+            else:
+                self.filter_in_count += 1  # the log that is not
+        elif self.filter_flag == 2:  # filter in
+            if log_name in self.filter_dict['FI']:  # message in the set
+                self.filter_in_count += 1
+            else:
+                is_filtered_flag = True
+                self.filter_out_count += 1
+
+        if self.filter_out_count % 1000 == 0 and self.filter_out_count > 0:
+            print('INFO: excluded log count: {0}'.format(self.filter_out_count))
+        if self.filter_in_count % 500 == 0 and self.filter_in_count > 0:
+            print('INFO: included log count: {0}'.format(self.filter_in_count))
+        return is_filtered_flag
+
+    def byte_concatenation(self, b_list):
+        ret = ''
+        for i in range(len(b_list)):
+            if i != len(b_list) - 1:
+                ret += b_list[i] + '-'
+            else:
+                ret += b_list[i]
+        return ret

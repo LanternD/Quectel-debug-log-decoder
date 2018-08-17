@@ -1,11 +1,10 @@
 from log_decoder import *
 
 # global setting
-
-filter_out_set = {'N/A'}  # add item to only one of them!!! To remove invalid message, use 'N/A'.
+filter_out_set = {'N/A', 'UICC_DBG_LOG_P0', 'UICC_DBG_LOG_P1', 'UICC_DBG_LOG_P2'}  # add item to only one of them!!! E.g. to remove invalid message, use 'N/A'.
 filter_in_set = {}  # add item to only one of them!!!
 filter_dict = {'FO': filter_out_set, 'FI': filter_in_set}
-is_from_log_viewer = True
+is_from_log_viewer = False
 
 
 def run_offline_ulv():
@@ -18,10 +17,13 @@ def run_offline_ulv():
     # my_decoder.export_stat_csv('bc95_reboot_log_')
 
 
-def run_live():
-    # Note: filtered logs will not be printed, if you want to export them to file, specify it in the config.
-    config = {'Export to file': True, 'Export filtered logs': False, 'Time format': '%m-%d %H:%M:%S'}
-    my_decoder = LiveUartLogDecoder('BC95', 'COM3', filter_dict, config)
+def run_online_uart():
+    config = {'Export to file': True,  # choose to export the decoded info. The raw log is mandatory.
+              'Export filename time prefix': '%y%m%d_%H%M%S',
+              'Export filtered logs': False,  # filtered logs will not be printed, but you can export them to file.
+              'Time format': '%m-%d %H:%M:%S.%f',  # see time.strftime() for detail.
+              'Export format': 'csv'}  # format: txt or csv, need to enable "export to file first".
+    my_decoder = UartOnlineLogDecoder('BC95', 'COM3', filter_dict, config)
     my_decoder.xml_loader()
     my_decoder.dbg_streaming()
 
@@ -32,4 +34,4 @@ if __name__ == '__main__':
     if is_from_log_viewer:
         run_offline_ulv()
     else:
-        run_live()
+        run_online_uart()
