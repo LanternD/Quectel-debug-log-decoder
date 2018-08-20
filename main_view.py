@@ -45,6 +45,8 @@ class MainView(QWidget):
         self.create_display_module()
         self.create_controller_module()
 
+        self.add_tool_tips()  # put tool tips to the components.
+
         left_section_layout.addWidget(self.serial_config_gbox)
         left_section_layout.addWidget(self.filter_config_gbox)
         left_section_layout.addWidget(self.display_gbox)
@@ -240,15 +242,11 @@ class MainView(QWidget):
 
         self.export_raw_cb = QCheckBox('Raw log')
         self.export_raw_cb.setChecked(True)
-        self.export_raw_cb.setToolTip('Raw log is in .txt format. It will record everything.')
 
         self.export_decoded_cb = QCheckBox('Decoded log')
         self.export_decoded_cb.setChecked(True)
-        self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
 
         self.keep_filtered_log_cb = QCheckBox('Keep filtered logs')
-        self.keep_filtered_log_cb.setToolTip(
-            'If checked, everything is saved, otherwise the filtered logs are discarded.')
 
         export_h_layout.addWidget(self.export_raw_cb)
         export_h_layout.addWidget(self.export_decoded_cb)
@@ -257,9 +255,6 @@ class MainView(QWidget):
 
         time_format_h_layout = QHBoxLayout()
         time_format_lb = QLabel('File name time format')
-        time_format_lb.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
-                                  '%H, %M, %S: hour/minute/second in two digits\n'
-                                  'For more info, check http://strftime.org/')
         self.time_format_input = QLineEdit('%y%m%d_%H%M%S')
         self.time_format_input.setMaximumWidth(200)
         time_format_h_layout.addWidget(time_format_lb)
@@ -612,7 +607,12 @@ class MainView(QWidget):
         self.config['UDP server port'] = self.socket_port_input.text()
         self.config['UDP local port'] = self.local_port_input.text()
 
-        print(self.config)
+        # keep the inputs to prevent typing next time.
+        self.config['AT command 1'] = self.at_command_input_1.text()
+        self.config['AT command 2'] = self.at_command_input_2.text()
+        self.config['AT command 3'] = self.at_command_input_3.text()
+
+        print('Your configurations:', self.config)
 
     def save_config_to_json(self):
         with open('config.json', 'w') as j_file:
@@ -686,6 +686,40 @@ class MainView(QWidget):
             self.disp_time_format_rb_zero.setChecked(True)
 
         self.create_socket_cb.setChecked(last_config['Create socket at start'])
+
+        # previous AT command input.
+        self.at_command_input_1.setText(last_config['AT command 1'])
+        self.at_command_input_2.setText(last_config['AT command 2'])
+        self.at_command_input_3.setText(last_config['AT command 3'])
+
+    def add_tool_tips(self):
+
+        self.dev_name_input.setToolTip('This is related to the .xml. '
+                                       'Please rename your corresponding XML to '
+                                       '"messages_YourDeviceName.xml" and put it '
+                                       'in the "deciders" folder.\n'
+                                       'If you are using devices other than BC95 and BC28, please update '
+                                       'the DebugLogDecoder init() function in "log_decoder.py."')
+        self.at_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
+        self.dbg_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
+
+        self.filter_no_rb.setToolTip('No filter, everything is logged.')
+        self.filter_in_rb.setToolTip('Keep only the messages with EXACT names in the filter.')
+        self.filter_out_rb.setToolTip('Discard the unwanted logs in the filter. \n'
+                                      'Note that this is for display purpose. You can check the "Keep filtered logs"'
+                                      'on the right to export the not-showing logs to file.')
+        self.filter_input.setToolTip('Separate multiple message names by comma ",".')
+        self.keep_filtered_log_cb.setToolTip('If checked, everything is saved, otherwise the filtered logs are discarded.')
+        self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
+                                  '%H, %M, %S: hour/minute/second in two digits\n'
+                                  'For more info, check http://strftime.org/')
+        self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
+        self.export_raw_cb.setToolTip('Raw log is in .txt format. It will record everything.')
+        self.start_btn.setToolTip('Create AT and debug serial handler and start recording the logs.\n'
+                                  'Every time you start will generate a new log file.')
+        self.stop_btn.setToolTip('Stop the logging, delete the serial handlers.')
+        self.at_command_input_1.setToolTip('You can also press Enter to send the command. The three input fields are equivalent')
+
 
     # Multithread signal processing
     # # debug decoder signal slots

@@ -2,6 +2,8 @@
 
 A decoder that leverages the message.xml file coming with the Quectel firmware to decode the UE (user equipment) debug log from the Quectel devices.
 
+**I don't have much time to update the README.md. It's inconsistent with the code. I'll improve this document in the future.**
+
 # Introduction
 
 The program first finds the corresponding decoder `.xml`, then uses the message ID to build a dictionary, whose key is the message decoder node in the XML tree. Then for each message, the program will find the message ID and parse the fields contained in the data packet. 
@@ -12,7 +14,7 @@ So why don't we just use The Log Viewer to read the debug log? Well, IMHO the Lo
 
 # Features
 
-- Currently, only [BC95](http://www.quectel.com/product/bc95.htm) debug log is supported. 
+- Currently, only [BC95](http://www.quectel.com/product/bc95.htm) and [BC28](https://www.quectel.com/cn/product/bc28.htm) debug log is supported. 
 - Only the data recorded by UE Log Viewer is supported. 
 - Save the decoded messages to files. 
 - Support filter-out (remove redundant messages) and filter-in (only keep those cared messages).
@@ -20,8 +22,8 @@ So why don't we just use The Log Viewer to read the debug log? Well, IMHO the Lo
 
 # Limitations
 
-- Because [BC28](http://www.quectel.com/cn/product/bc28.htm) decoder is not ready yet. The UEs from other manufacturers are not applicable (Quectel only!). 
-- Unable to decode messages read directly from the UE debog port. (No idea where is the start of a packet.)
+- The UEs from other manufacturers are not applicable (Quectel only!). 
+- Need more frendily display format.
 
 # Requirements
 
@@ -243,11 +245,15 @@ As comparison, here is an screenshot for illustration.
 
 ![UE Log Viewer UI](./assets/ue-log-viewer-ui.png "UE Log Viewer UI")
 
+# PyQt GUI Support
+
+![QT GUI version](./assets/quectel-ue-debug-log-assistant.png "Qt GUI Quectel debug log assistant")
+
 # TODO List
 
-- Add BC28 decode support. (Need more work.)
-- Add general serial terminal output log support. (So that the serial debug function can be run in Linux.)
+[ ] Prevent from potential debug log loss.
 
 # History
 
+- 2018.08.20 Add Qt GUI support. Control the AT port and read the debug log at the same time.
 - 2018.05.13 Initial release. Only basic functions are provided.
