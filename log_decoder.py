@@ -5,12 +5,14 @@ import serial
 import time
 import os.path
 import seaborn
+from PyQt5.QtCore import *
 
 
-class DebugLogDecoder(object):
+class DebugLogDecoder(QThread):
     # Load the XML file and then parse and format the logs.
     def __init__(self, device_name, filter_dict):
 
+        super(DebugLogDecoder, self).__init__()
         self.device_name = device_name.upper()
         self.filter_dict = filter_dict
         self.filter_flag = self.filter_dict_checker()  # 0: no filter, 1: filter out enabled, 2: filter in enabled.
@@ -437,11 +439,15 @@ class UlvLogDecoder(DebugLogDecoder):
 
 
 class UartOnlineLogDecoder(DebugLogDecoder):
+    dbg_uart_trigger = pyqtSignal()
 
-    def __init__(self, dev_name, uart_port, filter_dict, config):
+    def __init__(self, config):
+        dev_name = config['Device name']
+        uart_port = config['Dbg port']
+        filter_dict = config['Filter dict']
         super(UartOnlineLogDecoder, self).__init__(dev_name, filter_dict)
         self.ue_dbg_port = uart_port
-        self.dbg_port_handler = serial.Serial(self.ue_dbg_port, 921600)  # fixed baudrate
+        self.dbg_uart_handler = serial.Serial(self.ue_dbg_port, 921600)  # fixed baudrate
         self.dbg_run_flag = True
         self.config = config
         self.f_exp = None
@@ -455,7 +461,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.f_raw = open(raw_log_path, 'w', newline='')
         self.f_raw_csv_writer = csv.writer(self.f_raw)
 
-        if self.config['Export to file']:
+        if self.config['Export decoded']:
 
             if self.config['Export format'] not in {'txt', 'csv'}:
                 raise ValueError('Export file format unknown. \'txt\' and \'csv\' only.')
@@ -466,12 +472,14 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             if self.config['Export format'] == 'csv':
                 self.f_exp_csv_writer = csv.writer(self.f_exp)
 
+        self.transfer_buf = []
+        self.sys_info_buf = []
 
     def read_byte(self, num):
         # read byte from debug UART and format it.
-        return self.dbg_port_handler.read(num).hex().upper()  # hex() converts byte to str.
+        return self.dbg_uart_handler.read(num).hex().upper()  # hex() converts byte to str.
 
-    def dbg_streaming(self):
+    def run(self):
         states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT': 2, 'TICK': 3,
                   'DATA': 5, 'LENGTH': 4, 'FINISHED': 6}  # UART state machine
         str_buf = []
@@ -489,6 +497,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         empty_msg_list = [0, 0, .0]  # order: seq_num, timestamp, time tick,
         parsed_log_list = empty_msg_list.copy()
 
+        self.dbg_run_flag = True
         while self.dbg_run_flag:
             # run until the flag is set.
             if st == states['PREAMBLE']:
@@ -516,7 +525,11 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     str_buf.append(self.read_byte(1))
                 num_temp = self.hex_to_decimal(str_buf)
                 if num_temp - seq_num != 1:
-                    print('INFO: Inconsistent sequence number detected!')
+                    missing_log_msg = 'INFO: Inconsistent sequence number detected! This: {0}, Prev: {1}'.format(num_temp, seq_num)
+                    print(missing_log_msg)
+                    if self.config['Run in Qt']:
+                        self.sys_info_buf.append(missing_log_msg)
+                        self.dbg_uart_trigger.emit()
                 seq_num = num_temp
                 parsed_log_list[0] = seq_num  # update the dict
                 # print(str_buf, seq_num)
@@ -573,10 +586,14 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         is_filtered = self.filter_checker(info_list[4])
 
         if is_filtered is False:
-            print(res)
+            if self.config['Run in Qt']:
+                self.transfer_buf.append(res)
+                self.dbg_uart_trigger.emit()
+            else:
+                print(res)
         # apply the filter, exporting
-        if self.config['Export to file']:
-            if self.config['Export filtered logs'] is True:
+        if self.config['Export decoded']:
+            if self.config['Keep filtered logs'] is True:
                 # means write every log
                 is_filtered = False
 
@@ -594,10 +611,14 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         # Check filter
         is_filtered = self.filter_checker('APPLICATION_REPORT')
         if is_filtered is False:
-            print(whole_app_rep)
+            if self.config['Run in Qt']:
+                self.transfer_buf.append(whole_app_rep)
+                self.dbg_uart_trigger.emit()
+            else:
+                print(whole_app_rep)
 
-        if self.config['Export to file']:
-            if self.config['Export filtered logs'] is True:
+        if self.config['Export decoded']:
+            if self.config['Keep filtered logs'] is True:
                 # means write every log
                 is_filtered = False
 
@@ -626,9 +647,17 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 self.filter_out_count += 1
 
         if self.filter_out_count % 1000 == 0 and self.filter_out_count > 0:
-            print('INFO: excluded log count: {0}'.format(self.filter_out_count))
+            filter_out_msg = 'INFO: excluded log count: {0}'.format(self.filter_out_count)
+            print(filter_out_msg )
+            if self.config['Run in Qt']:
+                self.sys_info_buf.append(filter_out_msg)
+                self.dbg_uart_trigger.emit()
         if self.filter_in_count % 500 == 0 and self.filter_in_count > 0:
-            print('INFO: included log count: {0}'.format(self.filter_in_count))
+            filter_in_msg = 'INFO: included log count: {0}'.format(self.filter_in_count)
+            print(filter_in_msg)
+            if self.config['Run in Qt']:
+                self.sys_info_buf.append(filter_in_msg)
+                self.dbg_uart_trigger.emit()
         return is_filtered_flag
 
     def byte_concatenation(self, b_list):
