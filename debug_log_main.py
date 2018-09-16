@@ -8,7 +8,7 @@ is_from_log_viewer = False
 
 
 def run_offline_ulv():
-
+    # UELogViewer specific log parsing
     my_decoder = UlvLogDecoder('BC95', filter_dict)  # UELogViewer debug log processing.
     my_decoder.xml_loader()
     my_decoder.log_reader('bc95_ul_packet_log.txt',  # bc95_reboot_log
@@ -18,6 +18,7 @@ def run_offline_ulv():
 
 
 def run_online_uart():
+    # read and process the log in real-time.
     config = {'Device name': 'BC95',
               'Dbg port': 'COM3',
               'Filter dict': filter_dict,

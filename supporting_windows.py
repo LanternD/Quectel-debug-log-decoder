@@ -4,8 +4,8 @@ from PyQt5.QtCore import *
 import json
 import os.path
 
-VERSION = '0.1 Beta'
-LAST_UPDATE = '2018.08.19'
+VERSION = '0.2 Beta'
+LAST_UPDATE = '2018.09.15'
 
 class AboutMessageBox(QDialog):
 
@@ -29,7 +29,7 @@ class AboutMessageBox(QDialog):
         info_label = QLabel('NB-IOT Quectel UE Debug Log Assistant', self)
         info_label.move(70, 50)
 
-        author_label = QLabel('Developed by: \tDeliang Yang (LanternD)', self)
+        author_label = QLabel('Developer: \tDeliang Yang (LanternD), Xianghui Zhang, Liqian Shen', self)
         author_label.move(70, 90)
 
         version_label = QLabel('Version: \t' + VERSION, self)

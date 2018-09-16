@@ -1,3 +1,10 @@
+'''
+Naming convention:
+    Groupbox: xx_gbox
+    PushButton: xx_btn
+    PlanTextEdit: xx_monitor
+'''
+
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -8,6 +15,7 @@ import os.path
 from device_controller import UeAtController
 from log_decoder import *
 from utils import *
+from test_scripts import *
 
 class MainView(QWidget):
 
@@ -15,6 +23,7 @@ class MainView(QWidget):
         super(MainView, self).__init__(parent)
 
         self.config = {}
+        self.config['UDP local socket'] = 'X'
 
         # minor elements
         self.lb_font = QFont("Helvetica", 9)
@@ -25,12 +34,11 @@ class MainView(QWidget):
                                    'font-weight: bold;} ' \
                                    'Widget {font-weight: normal;}'
 
-        # Create device handler
-        # self.ue_serial_handler()
-
         main_layout = QHBoxLayout(self)
         left_section_layout = QVBoxLayout()
         left_section_layout.setStretch(2, 2)
+        mid_section_layout = QVBoxLayout()
+        mid_section_layout.setStretch(1, 1)
         right_section_layout = QVBoxLayout()
         right_section_layout.setStretch(1, 1)
 
@@ -39,11 +47,12 @@ class MainView(QWidget):
         print('Available seiral ports:', available_serials)
 
         # create main window layout
-        self.create_serial_config_module(available_serials)
-        self.create_filter_config_module()
-        self.create_export_display_config_module()
-        self.create_display_module()
-        self.create_controller_module()
+        self.create_serial_config_module(available_serials)  # self.serial_config_gbox is ready
+        self.create_filter_config_module()  # self.filter_config_gbox is ready
+        self.create_export_display_config_module()  # self.exp_disp_gbox is ready
+        self.create_display_module()  # self.display_gbox is ready
+        self.create_controller_module()  # self.controller_gbox is ready
+        self.create_live_measurement_module()  # self.live_measurement_display_gbox is ready
 
         self.add_tool_tips()  # put tool tips to the components.
 
@@ -52,9 +61,13 @@ class MainView(QWidget):
         left_section_layout.addWidget(self.display_gbox)
         self.controller_gbox.setMaximumWidth(400)
 
-        right_section_layout.addWidget(self.exp_disp_gbox)
-        right_section_layout.addWidget(self.controller_gbox)
+        mid_section_layout.addWidget(self.exp_disp_gbox)
+        mid_section_layout.addWidget(self.controller_gbox)
+
+        right_section_layout.addWidget(self.key_info_display_gbox)
+
         main_layout.addLayout(left_section_layout)
+        main_layout.addLayout(mid_section_layout)
         main_layout.addLayout(right_section_layout)
         self.setLayout(main_layout)
 
@@ -62,14 +75,20 @@ class MainView(QWidget):
 
         self.run_status = False  # indicate whether it is running or not.
         # self.set_availability_in_running_mode()
-
+        self.registered_configs = ('Device name', 'AT port', 'AT baudrate', 'Dbg port',
+                                   'Run in Qt', 'Filter dict', 'Export raw', 'Export decoded',
+                                   'Keep filtered logs', 'Export filename time prefix',
+                                   'Export format', 'Display time format', 'Create socket at start',
+                                   'UDP server IP', 'UDP server port', 'UDP local port',
+                                   'AT command 1', 'AT command 2', 'AT command 3',
+                                   'UL packet num', 'UL packet len', 'UL packet delay',
+                                   'Simplify log')
         self.load_config_from_json()
 
         # measurement results
-        self.main_log_text = ''
-        self.sys_log_text = ''
+        self.main_log_text = ''  # just a variable that store the txt in main monitor for reference.
+        self.sys_log_text = ''  # same as the above one.
         self.ue_info_dict = {}
-        self.gps_live_data = {}
 
         self.ul_mes_thread = None  # initialization
         self.cm_recorder_thread = None
@@ -119,7 +138,7 @@ class MainView(QWidget):
         self.dev_name_input.setMaximumWidth(50)
 
         # AT command port
-        at_label = QLabel('AT UART')
+        at_label = QLabel('AT')
         at_label.setFont(self.lb_font)
         at_port_label = QLabel('Port')
         self.at_port_cbb = QComboBox()
@@ -134,7 +153,7 @@ class MainView(QWidget):
         self.at_baud_cbb.setCurrentIndex(baud_options_str.index('9600'))
 
         # Debug info output config
-        dbg_label = QLabel('Debug UART')
+        dbg_label = QLabel('Debug')
         dbg_label.setFont(self.lb_font)
         dbg_port_label = QLabel('Port')
         self.dbg_port_cbb = QComboBox()
@@ -279,8 +298,13 @@ class MainView(QWidget):
 
         disp_v_layout = QVBoxLayout()
         disp_time_format_bg = QButtonGroup(disp_v_layout)
-        display_config_lb = QLabel('Time Display Configuration')
+        display_config_lb = QLabel('Display')
         display_config_lb.setFont(self.lb_font)
+
+        self.disp_simplified_log_cb = QCheckBox('Simplify debug log display')
+        self.disp_simplified_log_cb.setChecked(True)
+        self.disp_simplified_log_cb.stateChanged.connect(self.cbx_fn_simplify_option)
+
         # disp_time_format_lb = QLabel('Display time format')
         self.disp_time_format_rb_strf = QRadioButton('Local Time (e.g. 18-08-18 10:11:55.12353)')
         self.disp_time_format_rb_raw = QRadioButton('Raw time (e.g. 1534575622.4211376')
@@ -292,9 +316,16 @@ class MainView(QWidget):
         disp_time_format_bg.addButton(self.disp_time_format_rb_zero)
 
         disp_v_layout.addWidget(display_config_lb)
+
+        # disp_v_layout.addWidget(QLabel('Log verbosity'))
+        disp_v_layout.addWidget(self.disp_simplified_log_cb)
+        disp_v_layout.addWidget(QLabel('Time formatting'))
         disp_v_layout.addWidget(self.disp_time_format_rb_strf)
         disp_v_layout.addWidget(self.disp_time_format_rb_raw)
         disp_v_layout.addWidget(self.disp_time_format_rb_zero)
+
+        # TODO: Implement log simplification in log_decoder.
+        # TODO: Implement the time display option in log_decoder.
 
         config_v_layout.addWidget(export_lb)
         config_v_layout.addWidget(log_type_lb)
@@ -373,6 +404,62 @@ class MainView(QWidget):
         socket_v_layout.addLayout(socket_input_h_layout)
         socket_v_layout.addLayout(socket_btn_h_layout)
 
+        # Uplink script control
+        ul_script_v_layout = QVBoxLayout()
+        ul_script_lb = QLabel('Uplink Script Packet Setting')
+        ul_script_lb.setFont(self.lb_font)
+
+        ul_script_v_sub_layout = QVBoxLayout()
+
+        ul_input_h_layout = QHBoxLayout()
+        self.ul_packet_num_input = QLineEdit('10')
+        self.ul_packet_len_input = QLineEdit('512')
+        self.ul_delay_input = QLineEdit('380')
+
+        self.ul_packet_num_input.setMaximumWidth(70)
+        self.ul_packet_len_input.setMaximumWidth(50)
+        self.ul_delay_input.setMaximumWidth(100)
+
+        self.ul_packet_num_input.setPlaceholderText('Int')
+        self.ul_packet_len_input.setPlaceholderText('Int <=512')
+        self.ul_delay_input.setPlaceholderText('Int, ms')
+        ul_input_h_layout.addWidget(QLabel('Num'))
+        ul_input_h_layout.addWidget(self.ul_packet_num_input)
+        ul_input_h_layout.addWidget(QLabel('Len (Byte)'))
+        ul_input_h_layout.addWidget(self.ul_packet_len_input)
+        ul_input_h_layout.addWidget(QLabel('Delay (ms)'))
+        ul_input_h_layout.addWidget(self.ul_delay_input)
+
+        ul_ctrl_btn_h_layout = QHBoxLayout()
+        self.start_ul_btn = QPushButton('Start UL')
+        self.stop_ul_btn = QPushButton('Stop UL')
+        self.start_ul_btn.setMaximumWidth(150)
+        self.stop_ul_btn.setMaximumWidth(150)
+
+        ul_ctrl_btn_h_layout.addWidget(self.start_ul_btn)
+        ul_ctrl_btn_h_layout.addWidget(self.stop_ul_btn)
+
+        ## append everything to the layout
+        ul_script_v_layout.addWidget(ul_script_lb)
+        ul_script_v_sub_layout.addLayout(ul_input_h_layout)
+        ul_script_v_sub_layout.addLayout(ul_ctrl_btn_h_layout)
+        ul_script_v_layout.addLayout(ul_script_v_sub_layout)
+
+        # Misc Ctrl Btn
+        misc_btn_v_layout = QVBoxLayout()
+        misc_btn_lb = QLabel('Other Buttons')
+        misc_btn_lb.setFont(self.lb_font)
+        misc_btn_h_sub_layout = QHBoxLayout()
+
+        self.start_dl_btn = QPushButton('Start DL Test')
+        self.start_customized_script_btn = QPushButton('Customized Script')
+
+        misc_btn_h_sub_layout.addWidget(self.start_dl_btn)
+        misc_btn_h_sub_layout.addWidget(self.start_customized_script_btn)
+
+        misc_btn_v_layout.addWidget(misc_btn_lb)
+        misc_btn_v_layout.addLayout(misc_btn_h_sub_layout)
+
         # AT command inputs
         at_command_v_layout = QVBoxLayout()
 
@@ -425,29 +512,79 @@ class MainView(QWidget):
         controller_v_layout.addLayout(button_h_layout)
         controller_v_layout.addWidget(hline)
         controller_v_layout.addLayout(socket_v_layout)
+        controller_v_layout.addLayout(ul_script_v_layout)
+        controller_v_layout.addLayout(misc_btn_v_layout)
         controller_v_layout.addStretch()
         controller_v_layout.addLayout(at_command_v_layout)
 
         self.controller_gbox.setLayout(controller_v_layout)
 
-    # # at command buttons
+    def create_live_measurement_module(self):
+        # live measurement result display + important log display
+        self.key_info_display_gbox = QGroupBox('Key Info Display')
+        self.key_info_display_gbox.setStyleSheet(self.groupbox_stylesheet)
+
+        key_info_v_layout = QVBoxLayout()
+
+        # Section 1 in key info module
+        live_meansurement_lb = QLabel('Live Measurement Results')
+        live_meansurement_lb.setFont(self.lb_font)
+        self.live_measurement_monitor = QPlainTextEdit()  # the text display region
+        self.live_measurement_monitor.setFixedHeight(150)
+        self.live_measurement_monitor.setPlaceholderText('ECL=?\nCSQ=?\nRSRP=?\nSNR=?\n'
+                                                         'CELL ID=?\nCurrent state: ?\n'
+                                                         '')
+        # TODO: Find out the key log that contains the interesting measurement result
+
+        self.enable_live_measurement_flag = True  # indicate whether it is running or paused.
+        self.pause_and_resume_lm_btn = QPushButton('Pause')
+
+        # TODO: Implement the pause button function: if clicked, the result will not update, and the text is changed to "Resume"
+
+
+        # Section 2 in key info module
+        key_log_lb = QLabel('Key Log Display')
+        key_log_lb.setFont(self.lb_font)
+        # TODO: Add a button to pop-up a window for selecting the key logs to display.
+        self.key_log_monitor = QPlainTextEdit()
+        self.key_log_monitor.setPlaceholderText('List the selected key logs in time order.')
+        self.key_log_monitor_cursor = self.key_log_monitor.textCursor()
+        self.clear_key_log_btn = QPushButton('Clear Key Logs')
+
+        # append everything to the layout
+        key_info_v_layout.addWidget(live_meansurement_lb)
+        key_info_v_layout.addWidget(self.live_measurement_monitor)
+        key_info_v_layout.addWidget(self.pause_and_resume_lm_btn)
+
+        key_info_v_layout.addWidget(key_log_lb)
+        key_info_v_layout.addWidget(self.key_log_monitor)
+        key_info_v_layout.addWidget(self.clear_key_log_btn)
+
+        # set groupbox layout
+        self.key_info_display_gbox.setLayout(key_info_v_layout)
+
+    # Button functions
+    # # AT command buttons
     @pyqtSlot(name='BTN_RSP_SEND_AT_CMD')
     def btn_fn_send_at_command(self, idx):
         input_command = self.at_command_input_list[idx].text().upper()
         print('Send AT Command:', 'AT+' + input_command)
         self.qt_process_at_command(input_command)
 
+    # # Session start/stop control
     @pyqtSlot(name='START_SESSION')
     def btn_fn_start(self):
-        self.get_all_config()
-        self.save_config_to_json()
+        if self.get_all_config() == True:
+            self.save_config_to_json()
 
-        # create UE AT handler
-        self.ue_serial_handler()
-        self.dbg_serial_handler()
-        self.set_availability_in_running_mode()
-        self.append_sys_log('Start program')
-
+            # create UE AT handler
+            self.ue_serial_handler()
+            self.dbg_serial_handler()
+            self.set_availability_in_running_mode()
+            self.append_sys_log('Start program')
+        else:
+            # self.append_sys_log('Error in config setting detected.')
+            print('Error in config setting detected.')
 
     @pyqtSlot(name='STOP_SESSION')
     def btn_fn_stop(self):
@@ -463,10 +600,112 @@ class MainView(QWidget):
         self.append_sys_log('Debug port stopped.')
 
         self.set_availability_in_stop_mode()
-    # '''
+
+    # # Uplink measurement control
+    @pyqtSlot(name='START_UL_SCRIPT')
+    def btn_fn_ul_test(self, arg):
+        if arg == 'Start':
+
+            packet_length = self.ul_packet_len_input.text()
+            packet_num = self.ul_packet_num_input.text()
+            delay = self.ul_delay_input.text()
+
+            try:
+                self.config['UL packet len'] = int(packet_length)
+                self.config['UL packet num'] = int(packet_num)
+                self.config['UL packet delay'] = int(delay)
+            except ValueError:
+                self.append_sys_log('[Error] Invalid argument in uplink test settings.')
+                return -1
+
+            print('Uplink test setting: num={0}, len={1}, delay={2}'.format(self.config['UL packet num'],
+                                                                            self.config['UL packet len'],
+                                                                            self.config['UL packet delay']))
+
+            if self.ul_mes_thread is not None and self.ul_mes_thread.isRunning():
+                self.append_sys_log('Another uplink test is running.')
+            else:
+                self.ul_mes_thread = UplinkMeasurement(self.ue_handler, self.config)
+                self.ul_mes_thread.ul_trigger.connect(self.uplink_test_thread_processing)
+                self.ul_mes_thread.finished.connect(self.uplink_test_thread_processing)
+                self.ul_mes_thread.start()
+                self.start_ul_btn.setDisabled(True)
+                self.stop_ul_btn.setEnabled(True)
+        elif arg == 'Stop':
+            if self.ul_mes_thread is not None and self.ul_mes_thread.isRunning():
+                self.ul_mes_thread.run_flag = False
+                self.append_sys_log('Uplink test is terminated.')
+            else:
+                self.append_sys_log('There is nothing to stop.')
+            self.start_ul_btn.setEnabled(True)
+            self.stop_ul_btn.setDisabled(True)
+
+    # # Start customized script btn func
+    @pyqtSlot(name='BTN_RSP_CUSTOMIZED_SCRIPT')
+    def btn_fn_run_customized_script(self):
+        # Note: this will not start a new thread. So the UI may not response to your actions.
+        # prepare a .csv list of commands with delay in ms, load and run the script
+        script_path = './customized_script.csv'
+        if os.path.exists(script_path):
+            with open(script_path, 'r') as script_file:
+                script_reader = csv.reader(script_file)
+                for cmd in script_reader:
+                    cmd_buf = cmd[0].split('\t')
+                    self.qt_process_at_command(cmd_buf[0])
+                    time.sleep(int(cmd_buf[1]) / 1000)
+                script_file.close()
+        else:
+            self.append_sys_log('Script file does not exist. (Name: customized.script.csv. '
+                                'Separate command and delay with \\t.)')
+
+    # # Downlink test start button.
+    @pyqtSlot(name='BTN_RSP_DOWNLINK_TEST')
+    def btn_fn_downlink_test(self):
+        self.append_sys_log('Downlink test begins.')
+        # send a small packet to server to trigger the downlink packets transferring from the server.
+        self.ue_handler.at_write('NSOST=0,{0},{1},8,FFFFDDDDEEEEAAAA'.format(self.config['UDP server IP'],
+                                                                             self.config['UDP server port']))
+        time.sleep(0.5)
+        self.ue_handler.at_read_has_server_msg()
+        # data_len = atc.ser.read(20)
+        # print(data_len)
+        count = 0
+        success_count = 0
+        receive_start_time = time.time()
+        while count < 10:
+            count += 1
+            self.ue_handler.at_write('NSORF={0},512'.format(self.config['UDP local socket']))
+            print('Packet #', count)
+            new_msg, res = self.ue_handler.at_read()
+            self.ue_log_text += new_msg
+            time_lapse = time.time() - receive_start_time
+            print('Timestamp: {0}'.format(time_lapse))
+            if len(res) >= 3:
+                success_count += 1
+            time.sleep(2.9)  # this setting should be consistent with the server one.
+            self.display_ue_log()
+        print('Success:', success_count)
+        self.append_sys_log('Downlink received success: {0}/{1}'.format(success_count, count))
+
+    @pyqtSlot(name='SIMPLIFY_OPTION_CHANGED')
+    def cbx_fn_simplify_option(self):
+        current_state = self.disp_simplified_log_cb.checkState()
+        print(current_state)
+        if current_state:
+            self.append_sys_log('Simplify option is set to True.')
+        else:
+            self.append_sys_log('Simplify option is set to False.')
+        if current_state == 0:
+            self.config['Simplify log'] = False
+        elif current_state == 2:
+            self.config['Simplify log'] = True
+        else:
+            print('Unknown simplify log option.')
+
+    # TODO: Add ping server / create socket / close socket button functions
+
     # Supporting function zone
-    # '''
-    # AT command processing zone
+    ## AT command processing
     def qt_process_at_command(self, input_command):
         # general read and write (special case: read data from server)
         self.append_sys_log('AT+' + input_command)  # print only the first 50 chars
@@ -500,6 +739,10 @@ class MainView(QWidget):
         self.ping_server_btn.setDisabled(True)
         self.create_socket_btn.setDisabled(True)
         self.close_socket_btn.setDisabled(True)
+        self.start_ul_btn.setDisabled(True)
+        self.stop_ul_btn.setDisabled(True)
+        self.start_customized_script_btn.setDisabled(True)
+        self.start_dl_btn.setDisabled(True)
         # enable section
         self.dev_name_input.setEnabled(True)
         self.at_port_cbb.setEnabled(True)
@@ -547,6 +790,7 @@ class MainView(QWidget):
         self.filter_in_rb.setDisabled(True)
         self.filter_out_rb.setDisabled(True)
         self.filter_input.setDisabled(True)
+        self.stop_ul_btn.setEnabled(True)
         # enable section
         self.stop_btn.setEnabled(True)
         self.send_btn_1.setEnabled(True)
@@ -555,6 +799,9 @@ class MainView(QWidget):
         self.ping_server_btn.setEnabled(True)
         self.create_socket_btn.setEnabled(True)
         self.close_socket_btn.setEnabled(True)
+        self.start_ul_btn.setEnabled(True)
+        self.start_customized_script_btn.setEnabled(True)
+        self.start_dl_btn.setEnabled(True)
 
         self.at_command_input_1.returnPressed.connect(lambda: self.btn_fn_send_at_command(0))
         self.at_command_input_2.returnPressed.connect(lambda: self.btn_fn_send_at_command(1))
@@ -569,6 +816,14 @@ class MainView(QWidget):
         self.config['AT baudrate'] = self.at_baud_cbb.currentText()
         self.config['Dbg port'] = self.dbg_port_cbb.currentText()
         self.config['Run in Qt'] = True  # tell the decoder class to prepare for the Qt env.
+
+        # check UART port conflicts
+        if self.config['AT port'] == self.config['Dbg port']:
+            self.append_sys_log('[Error] Cannot choose the same port for AT and Debug log at the same time!')
+            return False
+        if self.config['AT port'] == '':
+            self.append_sys_log('[Error] Unknown AT serial port.')
+            return False
 
         # filter config
         self.config['Filter dict'] = {'FO': [], 'FI': []}
@@ -594,6 +849,7 @@ class MainView(QWidget):
             self.config['Export format'] = 'csv'
 
         # dispaly config
+        self.config['Simplify log'] = self.disp_simplified_log_cb.isChecked()
         if self.disp_time_format_rb_strf.isChecked():
             self.config['Display time format'] = 'local'
         elif self.disp_time_format_rb_raw.isChecked():
@@ -613,6 +869,7 @@ class MainView(QWidget):
         self.config['AT command 3'] = self.at_command_input_3.text()
 
         print('Your configurations:', self.config)
+        return True
 
     def save_config_to_json(self):
         with open('config.json', 'w') as j_file:
@@ -640,6 +897,15 @@ class MainView(QWidget):
         else:
             print('config.json does not exist.')
             return 0
+
+        # Check the integrity of the json file.
+        for element in self.registered_configs:
+            if element not in last_config:
+                print('[Warning] Part of the configs are missing in the "config.json" file. Use default'
+                                    'configs instead. Try to successfully start the logging for once to update '
+                                    'the config.json file.')
+                print('Missing element: \'{0}\''.format(element))
+                return 0
 
         # if there is config data, update the display
 
@@ -697,35 +963,35 @@ class MainView(QWidget):
         self.dev_name_input.setToolTip('This is related to the .xml. '
                                        'Please rename your corresponding XML to '
                                        '"messages_YourDeviceName.xml" and put it '
-                                       'in the "deciders" folder.\n'
+                                       'in the "decoders" folder.\n'
                                        'If you are using devices other than BC95 and BC28, please update '
                                        'the DebugLogDecoder init() function in "log_decoder.py."')
         self.at_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
         self.dbg_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
 
         self.filter_no_rb.setToolTip('No filter, everything is logged.')
-        self.filter_in_rb.setToolTip('Keep only the messages with EXACT names in the filter.')
+        self.filter_in_rb.setToolTip('Keep only the messages with EXACT names in the filter. Others are discarded.')
         self.filter_out_rb.setToolTip('Discard the unwanted logs in the filter. \n'
                                       'Note that this is for display purpose. You can check the "Keep filtered logs"'
                                       'on the right to export the not-showing logs to file.')
         self.filter_input.setToolTip('Separate multiple message names by comma ",".')
-        self.keep_filtered_log_cb.setToolTip('If checked, everything is saved, otherwise the filtered logs are discarded.')
+        self.keep_filtered_log_cb.setToolTip('If checked, everything is saved, otherwise the filtered-out logs are discarded.')
         self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
                                   '%H, %M, %S: hour/minute/second in two digits\n'
                                   'For more info, check http://strftime.org/')
         self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
-        self.export_raw_cb.setToolTip('Raw log is in .txt format. It will record everything.')
+        self.export_raw_cb.setToolTip('Raw HEX log is in .txt format. No log will be discarded.')
         self.start_btn.setToolTip('Create AT and debug serial handler and start recording the logs.\n'
                                   'Every time you start will generate a new log file.')
         self.stop_btn.setToolTip('Stop the logging, delete the serial handlers.')
         self.at_command_input_1.setToolTip('You can also press Enter to send the command. The three input fields are equivalent')
-
+        self.disp_simplified_log_cb.setToolTip('If checked, the details of the log is not displayed. This option will not'
+                                               'change the exported log.')
 
     # Multithread signal processing
     # # debug decoder signal slots
-    @pyqtSlot(name='THREAD_PROCESS_GPS')
+    @pyqtSlot(name='THREAD_FETCH_LOG')
     def dbg_fetch_log(self):
-        # print(self.gps_info_dict_buf)
         new_log = self.decoder.transfer_buf.copy()
         self.decoder.transfer_buf = []
         if new_log != []:
@@ -738,3 +1004,15 @@ class MainView(QWidget):
         if new_sys_info != []:
             for sys_info in new_sys_info:
                 self.append_sys_log(sys_info)
+
+    # # Uplink test signal slots
+    @pyqtSlot(name='THREAD_PROCESS_UPLINK_TEST')
+    def uplink_test_thread_processing(self):
+        fetched_data = self.ul_mes_thread.intermediate_output
+        if fetched_data['System log list']:
+            for items in fetched_data['System log list']:
+                self.append_sys_log(items)
+            fetched_data['System log list'] = []
+        if fetched_data['AT result'] != '':
+            self.display_ue_log(fetched_data['AT result'])
+            fetched_data['AT result'] = ''

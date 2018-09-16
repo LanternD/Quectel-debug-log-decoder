@@ -7,8 +7,8 @@ from supporting_windows import AboutMessageBox
 from main_view import MainView
 import getpass
 
-VERSION = '0.1 Beta'
-LAST_UPDATE = '2018.08.18'
+VERSION = '0.2 Beta'
+LAST_UPDATE = '2018.09.15'
 
 
 class CoverageMeasurementLogger(QMainWindow):
@@ -19,8 +19,8 @@ class CoverageMeasurementLogger(QMainWindow):
         self.title = 'Quectel UE Debug Log Assistant ' + self.version
         self.left = 50
         self.top = 50
-        self.width = 1280
-        self.height = 880
+        self.width = 1380
+        self.height = 940
         self.max_width = 1920
         self.max_height = 1440
         self.min_width = 980

@@ -48,11 +48,19 @@ There are two ';' separating the timestamp and the data. The hex data is conncec
 
 # Execution
 
+- Command Line Interface (CLI)
+
 ''' sh
 $ python debug_log_main.py
 '''
 
 I didn't add the shebang to the main file. Yet I don't add any command argument input yet, since this is just a simple code snippet.
+
+- Qt GUI version
+
+''' sh
+$ python qt_cmd_dbg_main.py
+'''
 
 ## Execution Output
 > Message dict length: 836
