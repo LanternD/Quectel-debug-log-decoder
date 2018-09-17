@@ -16,6 +16,7 @@ from device_controller import UeAtController
 from log_decoder import *
 from utils import *
 from test_scripts import *
+from supporting_windows import *
 
 class MainView(QWidget):
 
@@ -36,7 +37,7 @@ class MainView(QWidget):
 
         main_layout = QHBoxLayout(self)
         left_section_layout = QVBoxLayout()
-        left_section_layout.setStretch(2, 2)
+        left_section_layout.setStretch(2, 3)
         mid_section_layout = QVBoxLayout()
         mid_section_layout.setStretch(1, 1)
         right_section_layout = QVBoxLayout()
@@ -82,7 +83,7 @@ class MainView(QWidget):
                                    'UDP server IP', 'UDP server port', 'UDP local port',
                                    'AT command 1', 'AT command 2', 'AT command 3',
                                    'UL packet num', 'UL packet len', 'UL packet delay',
-                                   'Simplify log')
+                                   'Simplify log', 'Enable live measurement', 'Key log list')
         self.load_config_from_json()
 
         # measurement results
@@ -227,12 +228,14 @@ class MainView(QWidget):
         self.main_monitor.setPlaceholderText('Display AT command response and debug log.')
         self.main_monitor_cursor = self.main_monitor.textCursor()
         self.main_monitor.setFont(QFont('Courier New', 10))
+        # self.main_monitor.setMaximumWidth(750)
 
         self.secondary_monitor = QPlainTextEdit()
         self.secondary_monitor.setPlaceholderText('Display system controlling information, if there is any.')
         self.secondary_monitor.setFixedHeight(100)
         self.secondary_monitor_cursor = self.secondary_monitor.textCursor()
         self.secondary_monitor.setFont(QFont('Courier New', 9))
+        # self.secondary_monitor.setMaximumWidth(750)
 
         disp_v_layout.addWidget(self.main_monitor)
         disp_v_layout.addWidget(self.secondary_monitor)
@@ -307,7 +310,7 @@ class MainView(QWidget):
 
         # disp_time_format_lb = QLabel('Display time format')
         self.disp_time_format_rb_strf = QRadioButton('Local Time (e.g. 18-08-18 10:11:55.12353)')
-        self.disp_time_format_rb_raw = QRadioButton('Raw time (e.g. 1534575622.4211376')
+        self.disp_time_format_rb_raw = QRadioButton('Raw time (e.g. 1534575622.4211376)')
         self.disp_time_format_rb_zero = QRadioButton('0-offset (e.g. 0.4211376)')
         self.disp_time_format_rb_zero.setChecked(True)
 
@@ -324,7 +327,6 @@ class MainView(QWidget):
         disp_v_layout.addWidget(self.disp_time_format_rb_raw)
         disp_v_layout.addWidget(self.disp_time_format_rb_zero)
 
-        # TODO: Implement log simplification in log_decoder.
         # TODO: Implement the time display option in log_decoder.
 
         config_v_layout.addWidget(export_lb)
@@ -414,27 +416,27 @@ class MainView(QWidget):
         ul_input_h_layout = QHBoxLayout()
         self.ul_packet_num_input = QLineEdit('10')
         self.ul_packet_len_input = QLineEdit('512')
-        self.ul_delay_input = QLineEdit('380')
+        self.ul_packet_delay_input = QLineEdit('380')
 
         self.ul_packet_num_input.setMaximumWidth(70)
         self.ul_packet_len_input.setMaximumWidth(50)
-        self.ul_delay_input.setMaximumWidth(100)
+        self.ul_packet_delay_input.setMaximumWidth(100)
 
         self.ul_packet_num_input.setPlaceholderText('Int')
         self.ul_packet_len_input.setPlaceholderText('Int <=512')
-        self.ul_delay_input.setPlaceholderText('Int, ms')
+        self.ul_packet_delay_input.setPlaceholderText('Int, ms')
         ul_input_h_layout.addWidget(QLabel('Num'))
         ul_input_h_layout.addWidget(self.ul_packet_num_input)
         ul_input_h_layout.addWidget(QLabel('Len (Byte)'))
         ul_input_h_layout.addWidget(self.ul_packet_len_input)
         ul_input_h_layout.addWidget(QLabel('Delay (ms)'))
-        ul_input_h_layout.addWidget(self.ul_delay_input)
+        ul_input_h_layout.addWidget(self.ul_packet_delay_input)
 
         ul_ctrl_btn_h_layout = QHBoxLayout()
         self.start_ul_btn = QPushButton('Start UL')
         self.stop_ul_btn = QPushButton('Stop UL')
-        self.start_ul_btn.setMaximumWidth(150)
-        self.stop_ul_btn.setMaximumWidth(150)
+        # self.start_ul_btn.setMaximumWidth(150)
+        # self.stop_ul_btn.setMaximumWidth(150)
 
         ul_ctrl_btn_h_layout.addWidget(self.start_ul_btn)
         ul_ctrl_btn_h_layout.addWidget(self.stop_ul_btn)
@@ -531,21 +533,22 @@ class MainView(QWidget):
         live_meansurement_lb.setFont(self.lb_font)
         self.live_measurement_monitor = QPlainTextEdit()  # the text display region
         self.live_measurement_monitor.setFixedHeight(150)
-        self.live_measurement_monitor.setPlaceholderText('ECL=?\nCSQ=?\nRSRP=?\nSNR=?\n'
-                                                         'CELL ID=?\nCurrent state: ?\n'
-                                                         '')
-        # TODO: Find out the key log that contains the interesting measurement result
+        self.live_measurement_monitor.setPlaceholderText('Start logging to measure and display the data.')
+        # TODO: Find out the key log that contains the interesting measurement result, without reading from AT port
 
         self.enable_live_measurement_flag = True  # indicate whether it is running or paused.
         self.pause_and_resume_lm_btn = QPushButton('Pause')
-
-        # TODO: Implement the pause button function: if clicked, the result will not update, and the text is changed to "Resume"
-
+        self.pause_and_resume_lm_btn.clicked.connect(self.btn_fn_pause_or_resume_live_measurement)
 
         # Section 2 in key info module
         key_log_lb = QLabel('Key Log Display')
         key_log_lb.setFont(self.lb_font)
-        # TODO: Add a button to pop-up a window for selecting the key logs to display.
+
+        self.key_log_options_dialog = KeyLogConfigurator()  # create here for reference in the get_all_config() function.
+
+        self.select_key_log_btn = QPushButton('Select Key Log to Display')
+        self.select_key_log_btn.clicked.connect(self.btn_fn_select_key_log)
+
         self.key_log_monitor = QPlainTextEdit()
         self.key_log_monitor.setPlaceholderText('List the selected key logs in time order.')
         self.key_log_monitor_cursor = self.key_log_monitor.textCursor()
@@ -557,11 +560,13 @@ class MainView(QWidget):
         key_info_v_layout.addWidget(self.pause_and_resume_lm_btn)
 
         key_info_v_layout.addWidget(key_log_lb)
+        key_info_v_layout.addWidget(self.select_key_log_btn)
         key_info_v_layout.addWidget(self.key_log_monitor)
         key_info_v_layout.addWidget(self.clear_key_log_btn)
 
         # set groupbox layout
         self.key_info_display_gbox.setLayout(key_info_v_layout)
+        self.key_info_display_gbox.setMaximumWidth(400)
 
     # Button functions
     # # AT command buttons
@@ -608,7 +613,7 @@ class MainView(QWidget):
 
             packet_length = self.ul_packet_len_input.text()
             packet_num = self.ul_packet_num_input.text()
-            delay = self.ul_delay_input.text()
+            delay = self.ul_packet_delay_input.text()
 
             try:
                 self.config['UL packet len'] = int(packet_length)
@@ -690,7 +695,6 @@ class MainView(QWidget):
     @pyqtSlot(name='SIMPLIFY_OPTION_CHANGED')
     def cbx_fn_simplify_option(self):
         current_state = self.disp_simplified_log_cb.checkState()
-        print(current_state)
         if current_state:
             self.append_sys_log('Simplify option is set to True.')
         else:
@@ -702,6 +706,21 @@ class MainView(QWidget):
         else:
             print('Unknown simplify log option.')
 
+    @pyqtSlot(name='PAUSE_OR_RESUME_LIVE_MEASUREMENT')
+    def btn_fn_pause_or_resume_live_measurement(self):
+        if self.config['Enable live measurement'] is True:
+            self.pause_and_resume_lm_btn.setText('Resume')
+            self.config['Enable live measurement'] = False  # toggle the state
+        elif self.config['Enable live measurement'] is False:
+            self.pause_and_resume_lm_btn.setText('Pause')
+            self.config['Enable live measurement'] = True
+        else:
+            print('Unknown condition occurs.')
+        print('Live measurement is toggled. Now is {0}'.format(self.config['Enable live measurement']))
+
+    @pyqtSlot(name='SELECT_KEY_LOG')
+    def btn_fn_select_key_log(self):
+        self.key_log_options_dialog.exec_()
     # TODO: Add ping server / create socket / close socket button functions
 
     # Supporting function zone
@@ -743,6 +762,7 @@ class MainView(QWidget):
         self.stop_ul_btn.setDisabled(True)
         self.start_customized_script_btn.setDisabled(True)
         self.start_dl_btn.setDisabled(True)
+        self.pause_and_resume_lm_btn.setDisabled(True)
         # enable section
         self.dev_name_input.setEnabled(True)
         self.at_port_cbb.setEnabled(True)
@@ -769,6 +789,8 @@ class MainView(QWidget):
         self.at_command_input_2.returnPressed.disconnect()
         self.at_command_input_3.returnPressed.disconnect()
 
+        self.select_key_log_btn.setEnabled(True)
+
     def set_availability_in_running_mode(self):
         # disable section
         self.dev_name_input.setDisabled(True)
@@ -790,7 +812,8 @@ class MainView(QWidget):
         self.filter_in_rb.setDisabled(True)
         self.filter_out_rb.setDisabled(True)
         self.filter_input.setDisabled(True)
-        self.stop_ul_btn.setEnabled(True)
+        self.stop_ul_btn.setDisabled(True)
+        self.select_key_log_btn.setDisabled(True)
         # enable section
         self.stop_btn.setEnabled(True)
         self.send_btn_1.setEnabled(True)
@@ -802,6 +825,8 @@ class MainView(QWidget):
         self.start_ul_btn.setEnabled(True)
         self.start_customized_script_btn.setEnabled(True)
         self.start_dl_btn.setEnabled(True)
+        self.pause_and_resume_lm_btn.setEnabled(True)
+        self.pause_and_resume_lm_btn.setText('Pause')
 
         self.at_command_input_1.returnPressed.connect(lambda: self.btn_fn_send_at_command(0))
         self.at_command_input_2.returnPressed.connect(lambda: self.btn_fn_send_at_command(1))
@@ -867,6 +892,15 @@ class MainView(QWidget):
         self.config['AT command 1'] = self.at_command_input_1.text()
         self.config['AT command 2'] = self.at_command_input_2.text()
         self.config['AT command 3'] = self.at_command_input_3.text()
+
+        # uplink packet config
+        self.config['UL packet num'] = self.ul_packet_num_input.text()
+        self.config['UL packet len'] = self.ul_packet_len_input.text()
+        self.config['UL packet delay'] = self.ul_packet_delay_input.text()
+
+        # Special config that is not in the UI:
+        self.config['Enable live measurement'] = True
+        self.config['Key log list'] = self.key_log_options_dialog.key_log_selection_result
 
         print('Your configurations:', self.config)
         return True
@@ -1004,6 +1038,28 @@ class MainView(QWidget):
         if new_sys_info != []:
             for sys_info in new_sys_info:
                 self.append_sys_log(sys_info)
+
+        # TODO: the following function is called everytime we enter the fetch log runtime. Add an update period to it if necessary.
+        if self.config['Enable live measurement'] is True:
+            # update the live measurement monitor only this feature is enabled.
+            msg = self.format_live_measurement_result(self.decoder.live_measurement_buf)
+            self.live_measurement_monitor.setPlainText(msg)
+
+    def format_live_measurement_result(self, mes_dict):
+        # format the result and display it in the top right PlainTextEdit
+        # Order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
+        candidate_list = ['ECL', 'CSQ', 'RSRP', 'SNR', 'Cell ID', 'Current state', 'Last update']
+        msg = ''
+        for item in candidate_list:
+            try:
+                val = str(mes_dict[item])
+            except KeyError:
+                print('Key {0} is not in the given dictionary.'.format(item))
+                val = 'N/A'
+            msg += '{0}={1}\n'.format(item, val)
+            if item == candidate_list[-2]:
+                msg += '\n'  # add a separate line between the last update timestamp.
+        return msg
 
     # # Uplink test signal slots
     @pyqtSlot(name='THREAD_PROCESS_UPLINK_TEST')

@@ -11,10 +11,10 @@ VERSION = '0.2 Beta'
 LAST_UPDATE = '2018.09.15'
 
 
-class CoverageMeasurementLogger(QMainWindow):
+class DebugLogAnalyzer(QMainWindow):
 
     def __init__(self):
-        super(CoverageMeasurementLogger, self).__init__()
+        super(DebugLogAnalyzer, self).__init__()
         self.version = VERSION
         self.title = 'Quectel UE Debug Log Assistant ' + self.version
         self.left = 50
@@ -101,7 +101,7 @@ def run():
         local_font = QFont('Microsoft Yahei', 8)  # 'Segoe UI'
         my_app.setFont(local_font)
     # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
-    ex = CoverageMeasurementLogger()
+    ex = DebugLogAnalyzer()
     sys.exit(my_app.exec_())
 
 
