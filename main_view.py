@@ -108,10 +108,10 @@ class MainView(QWidget):
         self.append_sys_log('Connected to AT UART.')
         if self.config['Create socket at start']:
             _, _ = self.ue_handler.close_udp_socket(0)
-            _, _ = self.ue_handler.close_udp_socket(1)
+            _, _ = self.ue_handler.close_udp_socket(1)  # hope there are no more than 2 sockets
             _, msg_list = self.ue_handler.create_udp_socket(self.config['UDP local port'])
-            self.config['Local UDP socket'] = msg_list[0]
-            print('Socket #:', self.config['Local UDP socket'])
+            self.config['UDP local socket'] = msg_list[0]
+            print('Socket #:', self.config['UDP local socket'])
 
     def dbg_serial_handler(self):
         self.decoder = UartOnlineLogDecoder(self.config)
@@ -1076,6 +1076,8 @@ class MainView(QWidget):
         self.at_command_input_1.setToolTip('You can also press Enter to send the command. The three input fields are equivalent')
         self.disp_simplified_log_cb.setToolTip('If checked, the details of the log is not displayed. This option will not'
                                                'change the exported log.')
+        self.create_socket_btn.setToolTip('Only works when no socket exists.')
+        self.close_socket_btn.setToolTip('Only works when sockets exist.')
 
     # Multithread signal processing
     # # Debug decoder signal slots
