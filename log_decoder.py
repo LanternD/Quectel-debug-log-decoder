@@ -607,7 +607,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         else:
             res_disp = res
 
-        is_filtered = self.filter_checker(info_list[4])
+        is_filtered = self.check_filters(info_list[4])
 
         if is_filtered is False:
             if self.config['Run in Qt']:
@@ -636,7 +636,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                                                       info_list[2], info_list[3])
         whole_app_rep = first_line + info_list[4] + '\n'  # The 4th element is the actual msg. add double \n
         # Check filter
-        is_filtered = self.filter_checker('APPLICATION_REPORT')
+        is_filtered = self.check_filters('APPLICATION_REPORT')
         if is_filtered is False:
             if self.config['Run in Qt']:
                 self.transfer_buf.append(whole_app_rep)
@@ -656,7 +656,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 elif self.config['Export format'] == 'csv':
                     self.f_exp_csv_writer.writerow(info_list)
 
-    def filter_checker(self, log_name):
+    def check_filters(self, log_name):
 
         is_filtered_flag = False  # True: not wanted log; False: wanted log.
         # Apply the filter, printing

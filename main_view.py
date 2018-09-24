@@ -600,6 +600,14 @@ class MainView(QWidget):
 
     @pyqtSlot(name='STOP_SESSION')
     def btn_fn_stop(self):
+        # Terminate the running UL test first, and then close the socket.
+        if self.ul_mes_thread is not None and self.ul_mes_thread.isRunning():
+            self.ul_mes_thread.run_flag = False
+            self.append_sys_log('Uplink test is terminated.')
+        while self.ul_mes_thread.isRunning():
+            continue  # wait until it is over. Note that this might block the main view.
+
+        # TODO: add the close downlink test code if downlink measurement is enabled.
         # Close the device handlers
         self.ue_handler.ser.close()
         del self.ue_handler
@@ -728,8 +736,6 @@ class MainView(QWidget):
     @pyqtSlot(name='SELECT_KEY_LOG')
     def btn_fn_select_key_log(self):
         self.key_log_options_dialog.exec_()
-
-    # TODO: Add ping server / create socket / close socket button functions
 
     # # UDP socket buttons
     @pyqtSlot(name='BTN_RSP_PING_SERVER')
@@ -1083,7 +1089,12 @@ class MainView(QWidget):
     # # Debug decoder signal slots
     @pyqtSlot(name='THREAD_FETCH_LOG')
     def dbg_fetch_log(self):
-        new_log = self.decoder.transfer_buf.copy()
+        try:
+            new_log = self.decoder.transfer_buf.copy()
+        except AttributeError:
+            print('[ERROR] Debug UART is not found')
+            return -1
+
         self.decoder.transfer_buf = []
         if new_log != []:
             for log in new_log:
@@ -1125,7 +1136,7 @@ class MainView(QWidget):
         if fetched_data['System log list']:
             for items in fetched_data['System log list']:
                 self.append_sys_log(items)
-                if items == 'ULT: uplink test finished.\n':
+                if items == 'ULT: uplink test finished.\n' and self.run_status == True:
                     self.start_ul_btn.setEnabled(True)  # the test finishes, swap the button availability.
                     self.stop_ul_btn.setDisabled(True)
             fetched_data['System log list'] = []
