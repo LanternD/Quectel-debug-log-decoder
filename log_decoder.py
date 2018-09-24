@@ -1,11 +1,12 @@
-import csv
-import xml.etree.cElementTree as ET
 from collections import OrderedDict
-import serial
-import time
+import csv
+from datetime import datetime
 import os.path
 import seaborn
+import serial
+import time
 from PyQt5.QtCore import *
+import xml.etree.cElementTree as ET
 
 
 class DebugLogDecoder(QThread):
@@ -449,33 +450,34 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         super(UartOnlineLogDecoder, self).__init__(dev_name, filter_dict)
         self.ue_dbg_port = uart_port
-        self.dbg_uart_handler = serial.Serial(self.ue_dbg_port, 921600)  # fixed baudrate
+        self.dbg_uart_handler = serial.Serial(self.ue_dbg_port, 921600)  # Fixed baudrate
         self.dbg_run_flag = True
         self.config = config
 
         self.f_exp = None
         self.f_exp_csv_writer = None
 
-        self.filter_out_count = 0  # record the discarded log count
-        self.filter_in_count = 0  # record the kept log count
+        self.filter_out_count = 0  # Record the discarded log count
+        self.filter_in_count = 0  # Record the kept log count
 
-        self.transfer_buf = []  # transfer the decoded log
-        self.sys_info_buf = []  # transfer the system info
+        self.transfer_buf = []  # Transfer the decoded log
+        self.sys_info_buf = []  # Transfer the system info
         self.live_measurement_buf = {'ECL': -1, 'CSQ': -1, 'RSRP': -1, 'SNR': -1, 'Cell ID': -1,
-                                     'Current state': -1, 'Last update': -1} # transfer the live measurement results to the main thread
-        # live measurement order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
+                                     'Current state': -1, 'Last update': -1}  # Transfer the live measurement results to the main thread
+        # Live measurement order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
 
         file_time = time.strftime(self.config['Export filename time prefix'], time.localtime(time.time()))
+        self.start_timestamp = time.time()  # This is the 0 offset of the rest timestamps.
 
         if self.config['Export raw'] is True:
-            # create the raw log when this function is enabled.
+            # Create the raw log when this function is enabled.
             raw_log_path = '{0}{1}_{2}_raw.txt'.format(self.log_dir, file_time, self.device_name)
             self.f_raw = open(raw_log_path, 'w', newline='')
-            self.f_raw_csv_writer = csv.writer(self.f_raw)  # it is a txt file, but use csv writer to handle it.
+            self.f_raw_csv_writer = csv.writer(self.f_raw)  # It is a txt file, but use csv writer to handle it.
             self.sys_info_buf.append('Raw log created at: {0}.'.format(raw_log_path))
 
         if self.config['Export decoded']:
-            # create decoded output file when this function is enabled.
+            # Create decoded output file when this function is enabled.
             if self.config['Export format'] not in {'txt', 'csv'}:
                 # This unlikely happens.
                 raise ValueError('Export file format unknown. \'txt\' and \'csv\' only.')
@@ -488,7 +490,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             self.sys_info_buf.append('Decoded log file created at: {0}.'.format(file_path))
 
     def read_byte(self, num):
-        # read byte from debug UART and format it.
+        # Read byte from debug UART and format it.
         return self.dbg_uart_handler.read(num).hex().upper()  # hex() converts byte to str.
 
     def run(self):
@@ -498,7 +500,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         raw_buf = []
         st = states['PREAMBLE']
 
-        # initialize local variable to prevent warning.
+        # Initialize local variable to prevent warning.
         seq_num = 0
         time_tick = 0
         parsed_msg = ''
@@ -506,12 +508,12 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         payload_len = 1
         app_rep_flag = False
 
-        empty_msg_list = [0, 0, .0]  # order: seq_num, timestamp, time tick,
+        empty_msg_list = [0, 0, .0]  # Order: seq_num, timestamp, time tick,
         parsed_log_list = empty_msg_list.copy()
 
         self.dbg_run_flag = True
         while self.dbg_run_flag:
-            # run until the flag is set.
+            # Run until the flag is set.
             if st == states['PREAMBLE']:
                 new_byte = self.read_byte(1)
                 # print(new_byte)
@@ -526,7 +528,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     else:
                         str_buf = []
                 else:
-                    str_buf = []  # empty the buf and restart
+                    str_buf = []  # Empty the buf and restart
                 # str_buf.append(new_byte)
                 # if len(str_buf) > 200:  # read
                 #     print('Read too m')
@@ -543,7 +545,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                         self.sys_info_buf.append(missing_log_msg)
                         self.dbg_uart_trigger.emit()
                 seq_num = num_temp
-                parsed_log_list[0] = seq_num  # update the dict
+                parsed_log_list[0] = seq_num  # Update the dict
                 # print(str_buf, seq_num)
                 str_buf = []
                 st = states['TICK']
@@ -552,9 +554,9 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 for i in range(4):
                     str_buf.append(self.read_byte(1))
                 time_tick = self.hex_to_decimal(str_buf)
-                parsed_log_list[2] = time_tick  # update the dict
-                dummy = self.read_byte(4)  # neglect the useless bytes.
-                if dummy[0] == 'A':  # this is an application report message
+                parsed_log_list[2] = time_tick  # Update the dict
+                dummy = self.read_byte(4)  # Neglect the useless bytes.
+                if dummy[0] == 'A':  # This is an application report message
                     app_rep_flag = True
                     parsed_log_list.append('APPLICATION_REPORT')
                 else:
@@ -574,15 +576,15 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 raw_buf.append(self.byte_concatenation(str_buf))
 
                 if self.config['Export raw']:
-                    # export only if this feature is enabled.
+                    # Export only if this feature is enabled.
                     self.f_raw_csv_writer.writerow(raw_buf)
 
                 if app_rep_flag is True:
-                    str_buf.reverse()  # there is another reverse in the hex to ascii function.
+                    str_buf.reverse()  # There is another reverse in the hex to ascii function.
                     parsed_log_list.append(self.hex_to_ascii(str_buf))
                     self.application_report_export_processing(parsed_log_list)
                 else:
-                    disp_list = self.parse_one_msg_common(str_buf)  # order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                    disp_list = self.parse_one_msg_common(str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
                     parsed_log_list += disp_list
                     self.display_export_processing(parsed_log_list)
                     # print(parsed_log_dict)
@@ -591,7 +593,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 parsed_log_list = empty_msg_list.copy()
                 if self.config['Export decoded'] is True:
                     self.f_exp.flush()
-                st = states['PREAMBLE']  # recycle the UART state machine
+                st = states['PREAMBLE']  # Recycle the UART state machine
             elif st == states['UNKNOWN']:
                 print('Something wrong happens. Reset to PREAMBLE state.')
                 st = states['PREAMBLE']
@@ -601,7 +603,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         res = self.packet_output_formatting(info_list)
 
         if self.config['Simplify log'] is True:
-            res_disp = res.split('\n')[0] + '\n' # truncate the result and keep only the first line.
+            res_disp = res.split('\n')[0] + '\n' # Truncate the result and keep only the first line.
         else:
             res_disp = res
 
@@ -609,20 +611,21 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         if is_filtered is False:
             if self.config['Run in Qt']:
-                self.transfer_buf.append(res_disp)
-                self.dbg_uart_trigger.emit()  # tell the main thread to fetch data.
+                res_disp_new = self.format_timestamp_in_qt(res_disp)  # res_disp_new has formatted time according to the config.
+                self.transfer_buf.append(res_disp_new)
+                self.dbg_uart_trigger.emit()  # Tell the main thread to fetch data.
             else:
                 # Note: if the GUI is enabled. The log will not be printed out in STDOUT.
                 print(res_disp)
 
-        # apply the filter, exporting
+        # Apply the filter, exporting
         if self.config['Export decoded']:
             if self.config['Keep filtered logs'] is True:
-                # means write every log
+                # Means write every log
                 is_filtered = False
 
             if is_filtered is False:
-                # this log need to be export
+                # This log need to be export
                 if self.config['Export format'] == 'txt':
                     self.f_exp.write(res)
                 elif self.config['Export format'] == 'csv':
@@ -631,7 +634,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
     def application_report_export_processing(self, info_list):
         first_line = '#{0}\t{1}\t{2}\t{3}\t\n'.format(info_list[0], info_list[1],
                                                       info_list[2], info_list[3])
-        whole_app_rep = first_line + info_list[4]  # the 4th element is the actual msg
+        whole_app_rep = first_line + info_list[4] + '\n'  # The 4th element is the actual msg. add double \n
         # Check filter
         is_filtered = self.filter_checker('APPLICATION_REPORT')
         if is_filtered is False:
@@ -643,11 +646,11 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         if self.config['Export decoded']:
             if self.config['Keep filtered logs'] is True:
-                # means write every log
+                # Means write every log
                 is_filtered = False
 
             if is_filtered is False:
-                # this log need to be export
+                # This log need to be export
                 if self.config['Export format'] == 'txt':
                     self.f_exp.write(whole_app_rep)
                 elif self.config['Export format'] == 'csv':
@@ -656,15 +659,15 @@ class UartOnlineLogDecoder(DebugLogDecoder):
     def filter_checker(self, log_name):
 
         is_filtered_flag = False  # True: not wanted log; False: wanted log.
-        # apply the filter, printing
-        if self.filter_flag == 1:  # filter out
-            if log_name in self.filter_dict['FO']:  # message name
+        # Apply the filter, printing
+        if self.filter_flag == 1:  # Filter out
+            if log_name in self.filter_dict['FO']:  # Message name
                 is_filtered_flag = True
                 self.filter_out_count += 1
             else:
-                self.filter_in_count += 1  # the log that is not
-        elif self.filter_flag == 2:  # filter in
-            if log_name in self.filter_dict['FI']:  # message in the set
+                self.filter_in_count += 1  # The log that is not
+        elif self.filter_flag == 2:  # Filter in
+            if log_name in self.filter_dict['FI']:  # Message in the set
                 self.filter_in_count += 1
             else:
                 is_filtered_flag = True
@@ -675,7 +678,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             print(filter_out_msg)
             if self.config['Run in Qt']:
                 self.sys_info_buf.append(filter_out_msg)
-                self.dbg_uart_trigger.emit()  # tell the main thread to update the system info monitor.
+                self.dbg_uart_trigger.emit()  # Tell the main thread to update the system info monitor.
         if self.filter_in_count % 500 == 0 and self.filter_in_count > 0:
             filter_in_msg = 'INFO: included log count: {0}'.format(self.filter_in_count)
             print(filter_in_msg)
@@ -693,3 +696,41 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             else:
                 ret += b_list[i]
         return ret
+
+    def format_timestamp_in_qt(self, log_detail):
+        if self.config['Display time format'] == 'raw':
+            return log_detail
+
+        log_tmp = log_detail.split('\n')  # Separate each line, change the first line, and assemble them again.
+        header = log_tmp[0]
+        header_split = header.split('\t')
+        try:
+            timestamp_raw = float(header_split[1])
+        except ValueError:
+            print('Unknown timestamp value.')
+            return log_detail
+
+        time_new = timestamp_raw  # For initialization only
+        if self.config['Display time format'] == 'local':
+            time_new = datetime.fromtimestamp(timestamp_raw).strftime('%m-%d %H:%M:%S.%f')
+            # Note: if you would like to see the year in the display, add "%y-" to the format in the above line.
+        elif self.config['Display time format'] == 'zero':
+            time_new = timestamp_raw - self.start_timestamp
+        header_split[1] = str(time_new)
+
+        # Assemble the split data
+        header_new = ''
+        for i in range(len(header_split)):
+            header_new += header_split[i]
+            if i != len(header_split)-2:
+                header_new += '\t'
+
+        log_tmp[0] = header_new
+
+        log_new = ''
+        for row in log_tmp:
+            log_new += row + '\n'
+
+        return log_new
+
+

@@ -13,13 +13,16 @@ class UplinkMeasurement(QThread):
         self.intermediate_output = {'System log list': [], 'Sent notice': '',
                                     'AT result': ''}
 
+        self.test_string = ''
+
         self.config = config
         self.ue_handler = ue_handler
         self.packet_length = self.config['UL packet len']
         self.packet_num = self.config['UL packet num']
         self.delay_ms = self.config['UL packet delay']
 
-        self.file_hanlder()
+        if self.file_hanlder() == 0:
+            print('Run UL test with the default buffer.')
 
         self.run_flag = True
 
@@ -36,10 +39,11 @@ class UplinkMeasurement(QThread):
 
         self.intermediate_output['System log list'].append('ULT: uplink test begins.')
         while count < self.packet_num and self.run_flag:
+            print(self.fetch_packet_text(count))
             # add a header to each package
             count += 1
             packet = '//Package index: {0:4d}//'.format(count)
-            packet += self.buffer[0:self.packet_length - 23]
+            packet += self.test_string[0:self.packet_length - 23]  # 23 is the header length
             # print(len(packet))
             packet2msg = packet.encode('utf-8').hex()  # type: str
             # print(len(packet2msg))
@@ -51,7 +55,7 @@ class UplinkMeasurement(QThread):
             self.intermediate_output['System log list'].append(
                 'Packet sent: {0:3d}/{1:3d}'.format(count, self.packet_num))
 
-            print('Packet #:', count, '/', self.packet_num)
+            print('Packet count:', count, '/', self.packet_num)
             new_msg, msg_list = self.ue_handler.at_read()
             self.intermediate_output['AT result'] += new_msg
             self.ul_trigger.emit()
@@ -66,22 +70,33 @@ class UplinkMeasurement(QThread):
         res_str = ''
         for res in history:
             res_str += str(res)
-        self.intermediate_output['System log list'].append(res_str)
-        self.intermediate_output['System log list'].append('ULT: uplink test finished.')
+        self.intermediate_output['System log list'].append('Result overview: {0}'.format(res_str))
+        self.intermediate_output['System log list'].append('ULT: uplink test finished.\n')
 
     def file_hanlder(self):
         # Read the file from folder as buffer.
-        test_file_path = './test_file.txt'
+        test_file_path = './assets/Lorem Ipsum.txt'
         if os.path.exists(test_file_path):
-            with open('test_file.txt', 'r') as f_tx:
-                self.buffer = ''
+            with open(test_file_path, 'r') as f_tx:
+                self.test_string = ''
                 for lines in f_tx:
-                    self.buffer += lines
+                    self.test_string += lines
             f_tx.close()
+            print('Length of text string: {0}'.format(len(self.test_string)))
+            return 1
         else:
-            self.append_sys_log('test_file.txt does not exist. Create one in the folder, '
-                                'add some texts and retry.')
+            self.intermediate_output['System log list'].append(
+                '[Error] Lorem Ipsum.txt does not exist. Create one in the "assets" folder, '
+                'add some texts (at least 1024 Bytes) and retry.')
             return 0
+
+    def fetch_packet_text(self, packet_count):
+        if self.packet_length * packet_count > len(self.test_string):
+            ret_msg = self.test_string[len(self.test_string) - self.packet_length * packet_count:]
+            ret_msg += self.test_string[0:self.packet_length - len(ret_msg)]
+        else:
+            ret_msg = self.test_string[self.packet_length * packet_count: self.packet_length * (packet_count + 1)]
+        return len(ret_msg)
 
 
 class DownlinkMeasurement(QThread):
