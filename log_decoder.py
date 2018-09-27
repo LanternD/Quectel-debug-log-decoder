@@ -585,6 +585,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     self.application_report_export_processing(parsed_log_list)
                 else:
                     disp_list = self.parse_one_msg_common(str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                    self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list
                     self.display_export_processing(parsed_log_list)
                     # print(parsed_log_dict)
@@ -733,4 +734,23 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         return log_new
 
+    def extract_info_from_log(self, decoded_list):
+        # This is the entry of extracting important information from the log lively.
+        # Currently we only implement the live measurement result update + important log display.
+        # If there is any log processing code, append to this function.
+        live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND',]
+        important_log_list = []
+        msg_name = decoded_list[1]
 
+        if msg_name in live_measurement_log_list:
+            self.process_live_measurement_log(decoded_list)
+
+        # Note: it is not elif here because a log may fall into both categories.
+        if msg_name in important_log_list:
+            self.process_important_log(decoded_list)
+
+    def process_live_measurement_log(self, decoded_list):
+
+        msg_name = decoded_list[1]
+        if msg_name == 'LL1_LOG_ECL_INFO':
+            print(decoded_list[-1])

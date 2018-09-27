@@ -1,10 +1,11 @@
 import sys
 import os
+from main_view import MainView
+import qdarkstyle
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from supporting_windows import AboutMessageBox
-from main_view import MainView
 import getpass
 
 VERSION = '0.2 Beta'
@@ -101,6 +102,7 @@ def run():
         local_font = QFont('Microsoft Yahei', 8)  # 'Segoe UI'
         my_app.setFont(local_font)
     # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
+    my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
     ex = DebugLogAnalyzer()
     sys.exit(my_app.exec_())
 

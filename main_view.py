@@ -207,6 +207,11 @@ class MainView(QWidget):
         self.filter_input.setPlaceholderText('e.g. APPLICATION_REPORT')
         self.filter_input.setMinimumWidth(180)
 
+        self.update_filter_btn = QPushButton('Update Filters')
+        self.update_filter_btn.clicked.connect(self.btn_fn_update_filter)
+
+        # Done: Add an update button to filter config
+
         filter_h_layout.addWidget(filter_choice_lb)
         filter_h_layout.addWidget(self.filter_no_rb)
         filter_h_layout.addWidget(self.filter_in_rb)
@@ -214,6 +219,7 @@ class MainView(QWidget):
         filter_h_layout.addWidget(vline)
         filter_h_layout.addWidget(filter_text_lb)
         filter_h_layout.addWidget(self.filter_input)
+        filter_h_layout.addWidget(self.update_filter_btn)
         # filter_h_layout.addStretch()
 
         self.filter_config_gbox.setLayout(filter_h_layout)
@@ -232,6 +238,7 @@ class MainView(QWidget):
         self.main_monitor.setFont(QFont('Courier New', 10))
         # self.main_monitor.setMaximumWidth(750)
 
+        secondary_monitor_h_layout = QHBoxLayout()
         self.secondary_monitor = QPlainTextEdit()
         self.secondary_monitor.setPlaceholderText('Display system controlling information, if there is any.')
         self.secondary_monitor.setFixedHeight(100)
@@ -239,8 +246,24 @@ class MainView(QWidget):
         self.secondary_monitor.setFont(QFont('Courier New', 9))
         # self.secondary_monitor.setMaximumWidth(750)
 
+        # Done: Add a clear log button
+        clear_log_btn_v_layout = QVBoxLayout()
+        self.clear_main_monitor_btn = QPushButton('↑ Clear Above')
+        self.clear_secondary_monitor_btn = QPushButton('← Clear Left')
+
+        self.clear_main_monitor_btn.setFixedHeight(40)
+        self.clear_secondary_monitor_btn.setFixedHeight(40)
+        self.clear_main_monitor_btn.clicked.connect(lambda: self.btm_fn_clear_monitor('Main'))
+        self.clear_secondary_monitor_btn.clicked.connect(lambda: self.btm_fn_clear_monitor('Secondary'))
+
+        clear_log_btn_v_layout.addWidget(self.clear_main_monitor_btn)
+        clear_log_btn_v_layout.addWidget(self.clear_secondary_monitor_btn)
+
+        secondary_monitor_h_layout.addWidget(self.secondary_monitor)
+        secondary_monitor_h_layout.addLayout(clear_log_btn_v_layout)
+
         disp_v_layout.addWidget(self.main_monitor)
-        disp_v_layout.addWidget(self.secondary_monitor)
+        disp_v_layout.addLayout(secondary_monitor_h_layout)
 
         self.display_gbox.setLayout(disp_v_layout)
 
@@ -594,6 +617,7 @@ class MainView(QWidget):
             self.dbg_serial_handler()
             self.set_availability_in_running_mode()
             self.append_sys_log('Start program')
+            self.run_status = True
         else:
             # self.append_sys_log('Error in config setting detected.')
             print('Error in config setting detected.')
@@ -604,8 +628,8 @@ class MainView(QWidget):
         if self.ul_mes_thread is not None and self.ul_mes_thread.isRunning():
             self.ul_mes_thread.run_flag = False
             self.append_sys_log('Uplink test is terminated.')
-        while self.ul_mes_thread.isRunning():
-            continue  # wait until it is over. Note that this might block the main view.
+            while self.ul_mes_thread.isRunning():
+                continue  # wait until it is over. Note that this might block the main view.
 
         # TODO: add the close downlink test code if downlink measurement is enabled.
         # Close the device handlers
@@ -620,6 +644,7 @@ class MainView(QWidget):
         self.append_sys_log('Debug port stopped.')
 
         self.set_availability_in_stop_mode()
+        self.run_status = False
 
     # # Uplink measurement control
     @pyqtSlot(name='START_UL_SCRIPT')
@@ -782,6 +807,37 @@ class MainView(QWidget):
                                                                       data_to_send)
                 self.qt_process_at_command(combined_command)
 
+    @pyqtSlot(name='BTN_UPDATE_FILTER')
+    def btn_fn_update_filter(self):
+        # Fetch the new filters. Bug warning: some input may cause error.
+        new_filter = [name.strip() for name in self.filter_input.text().split(',')]
+        # Update the filter config.
+        if self.filter_no_rb.isChecked():
+            self.config['Filter dict']['FO'] = []
+            self.config['Filter dict']['FI'] = []
+        elif self.filter_out_rb.isChecked():
+            self.config['Filter dict']['FO'] = new_filter
+            self.config['Filter dict']['FI'] = []
+        elif self.filter_in_rb.isChecked():
+            self.config['Filter dict']['FO'] = []
+            self.config['Filter dict']['FI'] = new_filter
+        if self.decoder is not None:
+            self.decoder.filter_dict = self.config['Filter dict']
+        else:
+            self.append_sys_log('No decoder instance. Try to start again to automatically update the filters.')
+        # Update system monitor
+        self.append_sys_log('Filter config updated. New filter options: {0}'.format(self.config['Filter dict']))
+
+    @pyqtSlot(name='BTN_CLEAR_MONITOR')
+    def btm_fn_clear_monitor(self, monitor_name):
+        # only accept 'Main' and 'Secondary' as input.
+        if monitor_name == 'Main':
+            self.main_monitor.setPlainText('')
+        elif monitor_name == 'Secondary':
+            self.secondary_monitor.setPlainText('')
+        else:
+            self.append_sys_log('[Error] Invalid input args.')
+
     # Supporting function zone
     ## AT command processing
     def qt_process_at_command(self, input_command):
@@ -841,10 +897,10 @@ class MainView(QWidget):
         self.start_btn.setEnabled(True)
         self.create_socket_cb.setEnabled(True)
 
-        self.filter_no_rb.setEnabled(True)
-        self.filter_in_rb.setEnabled(True)
-        self.filter_out_rb.setEnabled(True)
-        self.filter_input.setEnabled(True)
+        # self.filter_no_rb.setEnabled(True)
+        # self.filter_in_rb.setEnabled(True)
+        # self.filter_out_rb.setEnabled(True)
+        # self.filter_input.setEnabled(True)
 
         self.at_command_input_1.returnPressed.disconnect()
         self.at_command_input_2.returnPressed.disconnect()
@@ -869,10 +925,12 @@ class MainView(QWidget):
         self.disp_time_format_rb_zero.setDisabled(True)
         self.start_btn.setDisabled(True)
         self.create_socket_cb.setDisabled(True)
-        self.filter_no_rb.setDisabled(True)
-        self.filter_in_rb.setDisabled(True)
-        self.filter_out_rb.setDisabled(True)
-        self.filter_input.setDisabled(True)
+
+        # self.filter_no_rb.setDisabled(True)
+        # self.filter_in_rb.setDisabled(True)
+        # self.filter_out_rb.setDisabled(True)
+        # self.filter_input.setDisabled(True)
+
         self.stop_ul_btn.setDisabled(True)
         self.select_key_log_btn.setDisabled(True)
         # Enable section
@@ -1084,6 +1142,8 @@ class MainView(QWidget):
                                                'change the exported log.')
         self.create_socket_btn.setToolTip('Only works when no socket exists.')
         self.close_socket_btn.setToolTip('Only works when sockets exist.')
+        self.update_filter_btn.setToolTip('The later updated filter configs will not be written into the local disk '
+                                          'unless start the logging again.')
 
     # Multithread signal processing
     # # Debug decoder signal slots
