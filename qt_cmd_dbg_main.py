@@ -102,7 +102,7 @@ def run():
         local_font = QFont('Microsoft Yahei', 8)  # 'Segoe UI'
         my_app.setFont(local_font)
     # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
-    my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
+    my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())  # dark mode. You need to run `pip install qdarkstyle` first.
     ex = DebugLogAnalyzer()
     sys.exit(my_app.exec_())
 

@@ -2,7 +2,7 @@
 
 A decoder that leverages the message.xml file coming with the Quectel firmware to decode the UE (user equipment) debug log from the Quectel devices.
 
-**I don't have much time to update the README.md. It's inconsistent with the code. I'll improve this document in the future.**
+**[Important Note] I don't have much time to update the README.md. So the information below may be inconsistent with the code. I'll improve this document in the future.**
 
 # Introduction
 
@@ -22,8 +22,9 @@ So why don't we just use The Log Viewer to read the debug log? Well, IMHO the Lo
 
 # Limitations
 
-- The UEs from other manufacturers are not applicable (Quectel only!). 
-- Need more frendily display format.
+- The UEs with HiSillicon chipset only (such as BC95 and BC28).
+- The UEs with Qualcomm chipset should support QXDM by default (no other software needed).
+- The display format is not quite friendly.
 
 # Requirements
 
@@ -50,17 +51,17 @@ There are two ';' separating the timestamp and the data. The hex data is conncec
 
 - Command Line Interface (CLI)
 
-''' sh
+``` sh
 $ python debug_log_main.py
-'''
+```
 
 I didn't add the shebang to the main file. Yet I don't add any command argument input yet, since this is just a simple code snippet.
 
 - Qt GUI version
 
-''' sh
+``` sh
 $ python qt_cmd_dbg_main.py
-'''
+```
 
 ## Execution Output
 > Message dict length: 836
@@ -249,13 +250,27 @@ The first line is the header of the messasge, the elements are in the following 
 
 Check the `output_files` folder for the output files.
 
-As comparison, here is an screenshot for illustration.
+As comparison, here is an screenshot from UELogViewer for illustration. As you can see the default view is mal-organized.
 
 ![UE Log Viewer UI](./assets/ue-log-viewer-ui.png "UE Log Viewer UI")
 
 # PyQt GUI Support
 
+Still under development. Need both AT port and Debug Trace port to work.
+
+- Day mode on Linux:
+
 ![QT GUI version](./assets/quectel-ue-debug-log-assistant.png "Qt GUI Quectel debug log assistant")
+
+- Dark mode on Linux:
+
+You need to `pip install qdarkstyle` first.
+
+![Dark mode](./assets/quectel-ue-debug-log-assistant_dark.png  "Dark mode")
+
+- Day mode on Windows (v0.1):
+
+![QT GUI version](./assets/quectel-ue-debug-log-assistant_v0.1.png "Qt GUI Quectel debug log assistant")
 
 # TODO List
 
