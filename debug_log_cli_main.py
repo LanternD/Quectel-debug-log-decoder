@@ -1,4 +1,4 @@
-from log_decoder import *
+from LogDecoders import *
 
 # global setting
 filter_out_list = {'N/A', 'UICC_DBG_LOG_P0', 'UICC_DBG_LOG_P1', 'UICC_DBG_LOG_P2'}  # add item to only one of them!!! E.g. to remove invalid message, use 'N/A'.

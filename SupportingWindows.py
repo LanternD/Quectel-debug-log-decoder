@@ -38,6 +38,7 @@ class AboutMessageBox(QDialog):
         update_date_label = QLabel('Last update: \t' + LAST_UPDATE, self)
         update_date_label.move(70, 170)
 
+
 class KeyLogConfigurator(QDialog):
 
     def __init__(self):

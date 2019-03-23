@@ -28,6 +28,14 @@ So why don't we just use The Log Viewer to read the debug log? Well, IMHO the Lo
 
 # Requirements
 
+Prerequisite
+
+``` sh
+pip install PyQtWebEngine
+pip install qdarkstyle
+pip isntall Monsoon
+```
+
 Log your debug message with **UE Log Viewer**, provided in the `assets` folder. (If you use some other serial terminals to log, the output will be another story.)
 
 Your log file should look like this:

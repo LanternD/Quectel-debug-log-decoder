@@ -1,7 +1,7 @@
 import serial
 import time
 from PyQt5.QtCore import *
-from log_decoder import *
+from LogDecoders import *
 
 
 class UeAtController(object):
@@ -77,9 +77,11 @@ class UeAtController(object):
     def output_print(self, byte_like):
         # Output formatting
         print(byte_like)
-        new_msg = byte_like.decode('utf-8')
-        # new_msg = byte_like.decode('ascii')
-
+        try:
+            # new_msg = byte_like.decode('ascii')
+            new_msg = byte_like.decode('utf-8')
+        except UnicodeDecodeError:
+            new_msg = '[ERROR] Unable to decode.\n'
         # print(new_msg)
         msg_list = new_msg.split('\r\n')
         msg_list = [x for x in msg_list if x != '']
@@ -218,7 +220,6 @@ class UeAtParser(object):
 
 
 class GpsController(QThread):
-
     gps_trigger = pyqtSignal()
 
     def __init__(self, com, rate):
@@ -229,15 +230,16 @@ class GpsController(QThread):
         self.ser = serial.Serial(com, rate, timeout=3)
         print('GPS serial connection established.')
         # when there is no signal, use the null dict.
-        self.gps_info_null_dict = {'Latitude': 'N/A', 'Longitude':'N/A',
-                              'Ground speed': '0', 'Available satellite': '0',
-                              'Latitude Deg': 'N/A', 'Longitude Deg': 'N/A',
-                              'UTC time': 'N/A', 'Ground speed mps': 'N/A',
-                              'Ground speed Knot': 'N/A', 'Height of geoid': 'N/A',
-                              'PDOP': '99', 'VDOP': '99', 'Latitude Raw': 'N/A',
-                              'Longitude Raw': 'N/A', 'Position type': '1',
-                              'HDOP': '99', 'Sat_id_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'],
-                              'Sat_cnr_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']}
+        self.gps_info_null_dict = {'Latitude': 'N/A', 'Longitude': 'N/A',
+                                   'Ground speed': '0', 'Available satellite': '0',
+                                   'Latitude Deg': 'N/A', 'Longitude Deg': 'N/A',
+                                   'UTC time': 'N/A', 'Ground speed mps': 'N/A',
+                                   'Ground speed Knot': 'N/A', 'Height of geoid': 'N/A',
+                                   'PDOP': '99', 'VDOP': '99', 'Latitude Raw': 'N/A',
+                                   'Longitude Raw': 'N/A', 'Position type': '1',
+                                   'HDOP': '99',
+                                   'Sat_id_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'],
+                                   'Sat_cnr_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']}
         self.gps_info_dict = self.gps_info_null_dict.copy()
 
     def run(self):
@@ -272,7 +274,7 @@ class GpsController(QThread):
                     # print(msg_split)
                     self.gps_info_dict['UTC time'] = msg_split[1]
                     latitude_raw = msg_split[3]
-                    ns_indicator= msg_split[4]  # north or south
+                    ns_indicator = msg_split[4]  # north or south
                     longitude_raw = msg_split[5]
                     ew_indicator = msg_split[6]  # east or west
                 elif msg_split[0] == '$GPVTG' and len(msg_split) == 10:
@@ -280,7 +282,7 @@ class GpsController(QThread):
                     # print(msg_split)
                     if msg_split[7] != '':
                         self.gps_info_dict['Ground speed'] = msg_split[7]
-                        self.gps_info_dict['Ground speed mps'] = '{0:5f}'.format(float(msg_split[7])/3.6)
+                        self.gps_info_dict['Ground speed mps'] = '{0:5f}'.format(float(msg_split[7]) / 3.6)
                     else:
                         self.gps_info_dict['Ground speed'] = 'X'
                         self.gps_info_dict['Ground speed mps'] = 'X'
@@ -293,7 +295,7 @@ class GpsController(QThread):
                     # GPGGA msg, complete
                     self.gps_info_dict['UTC time'] = msg_split[1]
                     latitude_raw = msg_split[2]
-                    ns_indicator= msg_split[3]  # north or south
+                    ns_indicator = msg_split[3]  # north or south
                     longitude_raw = msg_split[4]
                     ew_indicator = msg_split[5]  # east or west
                     self.gps_info_dict['Available satellite'] = msg_split[7]
@@ -306,7 +308,7 @@ class GpsController(QThread):
                     self.gps_info_dict['PDOP'] = msg_split[15]
                     self.gps_info_dict['HDOP'] = msg_split[16]
                     self.gps_info_dict['VDOP'] = msg_split[17]
-                elif msg_split[0] == '$GPGSV' and len(msg_split)%4 == 0:
+                elif msg_split[0] == '$GPGSV' and len(msg_split) % 4 == 0:
                     # GPGSV msg, most complicated one.
                     if msg_split[3] != '':
                         avail_sat = int(msg_split[3])
@@ -384,7 +386,7 @@ class GpsController(QThread):
             first_part = divided[0][:-2]
             second_part = divided[0][-2:]
             third_part = divided[1][:4]
-            float_num = float(first_part) + float(second_part)/60 + float(third_part)/600000
+            float_num = float(first_part) + float(second_part) / 60 + float(third_part) / 600000
             # print(float_num)
             return '{0:4f}'.format(float_num)
         else:
@@ -398,8 +400,8 @@ class GpsController(QThread):
             second_part = divided[0][-2:]
             third_part = divided[1][:4]
             res = '{0}°{1}\'{2}\'\''.format(int(first_part),
-                                        int(second_part),
-                                        float(third_part)*6/1000)
+                                            int(second_part),
+                                            float(third_part) * 6 / 1000)
             # print(res)
             return res
         else:

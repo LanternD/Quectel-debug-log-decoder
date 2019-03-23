@@ -1,7 +1,7 @@
 from PyQt5.QtCore import *
 import os
 import time
-from device_controller import UeAtParser
+from DeviceHandlers import UeAtParser
 import csv
 
 
@@ -110,4 +110,3 @@ class DownlinkMeasurement(QThread):
     def run(self):
         pass
         # TODO: Add the downlink measurement test details.
-

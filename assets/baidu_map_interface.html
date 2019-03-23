@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<style type="text/css">
+		body, html, #allmap {width: 100%;height: 100%;overflow: hidden;margin:0;font-family:"微软雅黑";}
+	</style>
+
+	<title>Map for testing</title>
+</head>
+<body>
+	<div id="allmap"></div>
+	<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=CWrOsFFvZTlO9t6GRtFhUGITi3VOAaRw"></script>
+</body>
+</html>
+<script type="text/javascript">
+
+	var map = new BMap.Map("allmap");
+	map.centerAndZoom(new BMap.Point(114.197574, 22.32383), 18);
+	// Add navigation controller
+  	var navigationControl = new BMap.NavigationControl({
+    	// put navi on the corner
+    	anchor: BMAP_ANCHOR_TOP_LEFT,
+   		 // small control type
+    	type: BMAP_NAVIGATION_CONTROL_SMALL,
+  	});
+
+  	map.addControl(navigationControl);
+	map.enableScrollWheelZoom(true);
+
+	function add_polyline(Lat1, Lon1, Lat2, Lon2, Line_color) {
+		var polyline = new BMap.Polyline([
+    	new BMap.Point(Lat1, Lon1),
+    	new BMap.Point(Lat2, Lon2)
+    	],
+    	{strokeColor:Line_color, strokeWeight:6, strokeOpacity:0.5}
+    	);
+		map.addOverlay(polyline);
+    }
+
+    function add_point(Lat, Lon){
+	    var new_point = new BMap.Point(Lat, Lon);
+		var marker = new BMap.Marker(new_point);
+		map.addOverlay(marker);
+		map.panTo(new_point);
+	}
+</script>
+

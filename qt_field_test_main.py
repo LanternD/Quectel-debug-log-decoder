@@ -1,15 +1,16 @@
 import sys
 import os
-from main_view import MainView
+from LogDecoderTabview import LogDecoderTabview
+from MainWindowTabview import MainWindowTabview
 import qdarkstyle
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-from supporting_windows import AboutMessageBox
+from SupportingWindows import AboutMessageBox
 import getpass
 
-VERSION = '0.2 Beta'
-LAST_UPDATE = '2018.09.15'
+VERSION = '0.4 Beta'
+LAST_UPDATE = '2019.03.23'
 
 
 class DebugLogAnalyzer(QMainWindow):
@@ -39,7 +40,7 @@ class DebugLogAnalyzer(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowIcon(QIcon('./assets/img/lol.jpg'))
+        self.setWindowIcon(QIcon('./assets/img/mouse.png'))
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top,
                          self.width, self.height)
@@ -76,9 +77,11 @@ class DebugLogAnalyzer(QMainWindow):
         help_menu.addAction(about_button)
 
         # add tabView
-        self.main_view = MainView()
-
+        self.main_view = LogDecoderTabview()
         self.setCentralWidget(self.main_view)
+
+        self.table_widget = MainWindowTabview()
+        self.setCentralWidget(self.table_widget)
 
         self.show()
 
@@ -86,6 +89,7 @@ class DebugLogAnalyzer(QMainWindow):
     def about_page(self):
         about_dialog = AboutMessageBox()
         about_dialog.exec_()
+
 
 def run():
     # do some system/computer specific settings

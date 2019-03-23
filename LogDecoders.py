@@ -106,10 +106,9 @@ class DebugLogDecoder(QThread):
         byte_str = ''
         byte_list.reverse()
         for b_ascii in byte_list:
-            if b_ascii != '00' or int(b_ascii , 16) < 127:
+            if b_ascii != '00' or int(b_ascii, 16) < 127:
                 byte_str += b_ascii
         return bytearray.fromhex(byte_str).decode()
-
 
     def parse_one_msg_common(self, data_flow):
         result_list = []
@@ -215,7 +214,7 @@ class DebugLogDecoder(QThread):
                     # print(info)
                     elif field_type == 'c_short':
                         # signed int. eg: 65535 should be converted to -1
-                        if info > 65536//2:
+                        if info > 65536 // 2:
                             info -= 65536
                         payload_dict[field_name] = str(info)
                     else:
@@ -267,16 +266,17 @@ class DebugLogDecoder(QThread):
             print('[ERROR]: Incomplete message for formatting.')
             return 'Incomplete Msg\n'
         if info_list[3] == 'N/A':
-            return info_list[0] + ' Invalid Msg\n'  # this is an invalid packet. Remove these two lines if you want them.
+            return info_list[
+                       0] + ' Invalid Msg\n'  # this is an invalid packet. Remove these two lines if you want them.
         ret_msg = ''
 
         # Deal with the header
         header_list = info_list[:-1]  # order: seq_num, time, time tick, msg_id_decimal,
         # msg name, src, dest, msg length
         header_print = '#{0}\t{1}\t{2}\t{4}({3})\t\t{5} -> {6}\t{7}'.format(header_list[0], header_list[1],
-                                                                           header_list[2], header_list[3],
-                                                                           header_list[4], header_list[5],
-                                                                           header_list[6], header_list[7])
+                                                                            header_list[2], header_list[3],
+                                                                            header_list[4], header_list[5],
+                                                                            header_list[6], header_list[7])
         ret_msg += header_print
         ret_msg += '\n'
         # The most important one
@@ -292,18 +292,18 @@ class DebugLogDecoder(QThread):
             field_key = element
             field_value = odict[element]
             if type(field_value) == str or type(field_value) == bool:
-                one_line = ' {0}{1}: {2}'.format(level*'\t', field_key, field_value)
+                one_line = ' {0}{1}: {2}'.format(level * '\t', field_key, field_value)
             elif type(field_value) == list:
                 counter = 0
                 linefy = ''
                 for item in field_value:
                     linefy += '{0}_{1}: {2} / '.format(field_key, counter, item)
                     counter += 1
-                one_line = ' {0}{1}'.format(level*'\t', linefy)
+                one_line = ' {0}{1}'.format(level * '\t', linefy)
             elif type(field_value) == OrderedDict:
                 # print('>>> Ordered Dict.')
                 another_dict = self.format_ordered_dict(level + 1, field_value)
-                one_line = ' {0}{1}: \n{2}'.format(level*'\t', field_key, another_dict)
+                one_line = ' {0}{1}: \n{2}'.format(level * '\t', field_key, another_dict)
             else:
                 one_line = '??????'
             if one_line[-1] != '\n':
@@ -369,7 +369,6 @@ class UlvLogDecoder(DebugLogDecoder):
     def __init__(self, dev_name, filter_dict):
         super(UlvLogDecoder, self).__init__(dev_name, filter_dict)
 
-
     def log_reader(self, log_path, save_to_file_flag=True):
 
         if save_to_file_flag:
@@ -381,9 +380,9 @@ class UlvLogDecoder(DebugLogDecoder):
             header_list = ['Seq ID', 'Timestamp', 'Time tick', 'Decimal ID', 'Msg ID', 'Source',
                            'Destination', 'Length', 'Formatted Output']
             header_print = '{0}\t{1}\t{2}\t{4}({3})\t\t{5} -> {6}\t{7}\t{8}'.format(header_list[0], header_list[1],
-                                                                                 header_list[2], header_list[3],
-                                                                                 header_list[4], header_list[5],
-                                                                                 header_list[6], header_list[7],
+                                                                                    header_list[2], header_list[3],
+                                                                                    header_list[4], header_list[5],
+                                                                                    header_list[6], header_list[7],
                                                                                     header_list[8])
             if not save_to_file_flag:
                 print(header_print)
@@ -474,7 +473,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.transfer_buf = []  # Transfer the decoded log
         self.sys_info_buf = []  # Transfer the system info
         self.live_measurement_buf = {'ECL': -1, 'CSQ': -1, 'RSRP': -1, 'SNR': -1, 'Cell ID': -1,
-                                     'Current state': -1, 'Last update': -1}  # Transfer the live measurement results to the main thread
+                                     'Current state': -1,
+                                     'Last update': -1}  # Transfer the live measurement results to the main thread
         # Live measurement order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
 
         file_time = time.strftime(self.config['Export filename time prefix'], time.localtime(time.time()))
@@ -494,7 +494,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 raise ValueError('Export file format unknown. \'txt\' and \'csv\' only.')
 
             file_path = '{0}{1}_{2}_{3}.{4}'.format(self.decode_output_dir, file_time,
-                                                   self.device_name, 'OL', self.config['Export format'])
+                                                    self.device_name, 'OL', self.config['Export format'])
             self.f_exp = open(file_path, 'w', newline='')
             if self.config['Export format'] == 'csv':
                 self.f_exp_csv_writer = csv.writer(self.f_exp)
@@ -550,7 +550,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     str_buf.append(self.read_byte(1))
                 num_temp = self.hex_to_decimal(str_buf)
                 if num_temp - seq_num != 1:
-                    missing_log_msg = '[Warning] Inconsistent sequence number detected! This: {0}, Prev: {1}'.format(num_temp, seq_num)
+                    missing_log_msg = '[Warning] Inconsistent sequence number detected! This: {0}, Prev: {1}'.format(
+                        num_temp, seq_num)
                     print(missing_log_msg)
                     if self.config['Run in Qt']:
                         self.sys_info_buf.append(missing_log_msg)
@@ -595,7 +596,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     parsed_log_list.append(self.hex_to_ascii(str_buf))
                     self.application_report_export_processing(parsed_log_list)
                 else:
-                    disp_list = self.parse_one_msg_common(str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                    disp_list = self.parse_one_msg_common(
+                        str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
                     self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list
                     self.display_export_processing(parsed_log_list)
@@ -615,7 +617,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.res = self.packet_output_formatting(info_list)
 
         if self.config['Simplify log'] is True:
-            res_disp = self.res.split('\n')[0] + '\n' # Truncate the result and keep only the first line.
+            res_disp = self.res.split('\n')[0] + '\n'  # Truncate the result and keep only the first line.
         else:
             res_disp = self.res
 
@@ -625,7 +627,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         if is_filtered is False:
             if self.config['Run in Qt']:
-                res_disp_new = self.format_timestamp_in_qt(res_disp)  # res_disp_new has formatted time according to the config.
+                res_disp_new = self.format_timestamp_in_qt(
+                    res_disp)  # res_disp_new has formatted time according to the config.
                 self.transfer_buf.append(res_disp_new)
                 self.dbg_uart_trigger.emit()  # Tell the main thread to fetch data.
             else:
@@ -736,7 +739,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         header_new = ''
         for i in range(len(header_split)):
             header_new += header_split[i]
-            if i != len(header_split)-2:
+            if i != len(header_split) - 2:
                 header_new += '\t'
 
         log_tmp[0] = header_new
@@ -754,7 +757,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         if len(decoded_list) == 0:
             print('[ERROR]: Empty decoded list.')
             return
-        live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND',]
+        live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND', ]
         important_log_list = []
         msg_name = decoded_list[1]
 

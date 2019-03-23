@@ -8,22 +8,24 @@ Naming convention:
 import csv
 import json
 import os.path
+import multiprocessing
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import time
+import re
 
-from device_controller import UeAtController
-from log_decoder import *
-from run_test_scripts import *
-from supporting_windows import *
+from DeviceHandlers import UeAtController
+from LogDecoders import *
+from ExperimentCtrlScript import *
+from SupportingWindows import *
 from utils import *
 
 
-class MainView(QWidget):
+class LogDecoderTabview(QWidget):
 
     def __init__(self, parent=None):
-        super(MainView, self).__init__(parent)
+        super(LogDecoderTabview, self).__init__(parent)
 
         self.config = {}
         self.config['UDP local socket'] = 'X'
@@ -1056,8 +1058,8 @@ class MainView(QWidget):
         for element in self.registered_configs:
             if element not in last_config:
                 print('[Warning] Part of the configs are missing in the "config.json" file. Use default'
-                                    'configs instead. Try to successfully start the logging for once to update '
-                                    'the config.json file.')
+                      'configs instead. Try to successfully start the logging for once to update '
+                      'the config.json file.')
                 print('Missing element: \'{0}\''.format(element))
                 return 0
 
@@ -1129,18 +1131,21 @@ class MainView(QWidget):
                                       'Note that this is for display purpose. You can check the "Keep filtered logs"'
                                       'on the right to export the not-showing logs to file.')
         self.filter_input.setToolTip('Separate multiple message names by comma ",".')
-        self.keep_filtered_log_cb.setToolTip('If checked, everything is saved, otherwise the filtered-out logs are discarded.')
+        self.keep_filtered_log_cb.setToolTip(
+            'If checked, everything is saved, otherwise the filtered-out logs are discarded.')
         self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
-                                  '%H, %M, %S: hour/minute/second in two digits\n'
-                                  'For more info, check http://strftime.org/')
+                                          '%H, %M, %S: hour/minute/second in two digits\n'
+                                          'For more info, check http://strftime.org/')
         self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
         self.export_raw_cb.setToolTip('Raw HEX log is in .txt format. No log will be discarded.')
         self.start_btn.setToolTip('Create AT and debug serial handler and start recording the logs.\n'
                                   'Every time you start will generate a new log file.')
         self.stop_btn.setToolTip('Stop the logging, delete the serial handlers.')
-        self.at_command_input_1.setToolTip('You can also press Enter to send the command. The three input fields are equivalent')
-        self.disp_simplified_log_cb.setToolTip('If checked, the details of the log is not displayed. This option will not'
-                                               'change the exported log.')
+        self.at_command_input_1.setToolTip(
+            'You can also press Enter to send the command. The three input fields are equivalent')
+        self.disp_simplified_log_cb.setToolTip(
+            'If checked, the details of the log is not displayed. This option will not'
+            'change the exported log.')
         self.create_socket_btn.setToolTip('Only works when no socket exists.')
         self.close_socket_btn.setToolTip('Only works when sockets exist.')
         self.update_filter_btn.setToolTip('The later updated filter configs will not be written into the local disk '
@@ -1161,6 +1166,10 @@ class MainView(QWidget):
             for log in new_log:
                 self.main_log_text += log
                 self.display_ue_log(log)
+
+                # process the key logs
+                if self.decoder.res != None:
+                    self.get_key_log(self.decoder.res)
 
         new_sys_info = self.decoder.sys_info_buf.copy()
         self.decoder.sys_info_buf = []
@@ -1204,3 +1213,52 @@ class MainView(QWidget):
         if fetched_data['AT result'] != '':
             self.display_ue_log(fetched_data['AT result'])
             fetched_data['AT result'] = ''
+
+    def get_key_log(self, log_msg):
+        # if self.FILL_SIB_CH.isChecked():
+        if (log_msg.find('FILL_SRB1')) != -1 and self.key_log_options_dialog.CB__RLC_UL_FILL_SRB1_TX_DATA.isChecked():
+            temp = re.split('[\t]', log_msg)
+            struct = ''
+            for item in temp:
+                if item.find('FILL_SRB1') != -1:
+                    item_temp = item.split('(')
+                    struct = struct + item_temp[0] + ':\n'
+                elif item.find('allocated') != -1:
+                    t_fill = re.split('[\n]', item)
+                    for item_fill in t_fill:
+                        if item_fill.find('allocated') != -1:
+                            struct = struct + '\n---' + item_fill
+                        if item_fill.find('filled') != -1:
+                            struct = struct + '\n---' + item_fill
+            self.key_log_monitor.appendPlainText(struct)
+            self.key_log_monitor.appendPlainText('--------')
+        # if self.ACK_CH.isChecked():
+        if (log_msg.find('LL1_HARQ_ACK_') or log_msg.find(
+                'NACK')) != -1 and self.key_log_options_dialog.CB_ACK.isChecked():
+            temp = re.split('[\t]', log_msg)
+            self.key_log_monitor.appendPlainText(temp[1])
+            for item in temp:
+                if item.find('ACK' or 'NACK') != -1:
+                    item_temp = item.split('(')
+                    self.key_log_monitor.appendPlainText(item_temp[0])
+                    self.key_log_monitor.appendPlainText('--------')
+        # if self.FORMAT_N0_CH.isChecked():
+        if (log_msg.find('LL1_DCI')) != -1 and self.key_log_options_dialog.CB_LL1_DCI.isChecked():
+            temp = re.split('[\t]', log_msg)
+            struct = ''
+            self.key_log_monitor.appendPlainText(temp[1])
+            for item in temp:
+                if item.find('LL1_DCI') != -1:
+                    item_temp = item.split('(')
+                    struct = struct + item_temp[0] + ':\n'
+                if item.find('repetition_number') != -1:
+                    if item.find('dci_sf_repetition_number') != -1:
+                        struct = struct + '\n-- ' + item
+                    else:
+                        struct = struct + '\n-- ' + item
+                if item.find('modulation_coding_scheme_tbs') != -1:
+                    struct = struct + '\n--- ' + item
+                if item.find('new_data_ind') != -1:
+                    struct = struct + '\n--- ' + item
+            self.key_log_monitor.appendPlainText(struct)
+            self.key_log_monitor.appendPlainText('--------')
