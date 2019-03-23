@@ -161,7 +161,8 @@ class MainView(QWidget):
         dbg_port_label = QLabel('Port')
         self.dbg_port_cbb = QComboBox()
         self.dbg_port_cbb.addItems(avail_serials)
-        self.dbg_port_cbb.setCurrentIndex(avail_serials.index(avail_serials[-1]))
+        if len(avail_serials) != 0:
+            self.dbg_port_cbb.setCurrentIndex(avail_serials.index(avail_serials[-1]))
         dbg_baud_info = QLabel('Baud: 921600')
 
         # Layout loading

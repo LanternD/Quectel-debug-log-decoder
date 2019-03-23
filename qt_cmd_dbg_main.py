@@ -20,7 +20,7 @@ class DebugLogAnalyzer(QMainWindow):
         self.title = 'Quectel UE Debug Log Assistant ' + self.version
         self.left = 50
         self.top = 50
-        self.width = 1380
+        self.width = 1480
         self.height = 940
         self.max_width = 1920
         self.max_height = 1440
@@ -102,7 +102,7 @@ def run():
         local_font = QFont('Microsoft Yahei', 8)  # 'Segoe UI'
         my_app.setFont(local_font)
     # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
-    my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())  # dark mode. You need to run `pip install qdarkstyle` first.
+    # my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())  # dark mode. You need to run `pip install qdarkstyle` first.
     ex = DebugLogAnalyzer()
     sys.exit(my_app.exec_())
 

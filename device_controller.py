@@ -76,7 +76,9 @@ class UeAtController(object):
 
     def output_print(self, byte_like):
         # Output formatting
+        print(byte_like)
         new_msg = byte_like.decode('utf-8')
+        # new_msg = byte_like.decode('ascii')
 
         # print(new_msg)
         msg_list = new_msg.split('\r\n')
@@ -214,24 +216,191 @@ class UeAtParser(object):
         else:
             return ['N/A', 'N/A']
 
-'''
-class QtDbgReader(QThread):
-    dbg_port_trigger = pyqtSignal()
 
-    def __init__(self, config):
+class GpsController(QThread):
 
-        super(QtDbgReader, self).__init__()
-        self.config = config
-        self.decoder = UartOnlineLogDecoder(config)
-        self.decoder.xml_loader()  # initialization
-        print('Debug UART is running.')
-        self.run_flag = True
+    gps_trigger = pyqtSignal()
+
+    def __init__(self, com, rate):
+
+        super(GpsController, self).__init__()
+        self.com = com
+        self.rate = rate
+        self.ser = serial.Serial(com, rate, timeout=3)
+        print('GPS serial connection established.')
+        # when there is no signal, use the null dict.
+        self.gps_info_null_dict = {'Latitude': 'N/A', 'Longitude':'N/A',
+                              'Ground speed': '0', 'Available satellite': '0',
+                              'Latitude Deg': 'N/A', 'Longitude Deg': 'N/A',
+                              'UTC time': 'N/A', 'Ground speed mps': 'N/A',
+                              'Ground speed Knot': 'N/A', 'Height of geoid': 'N/A',
+                              'PDOP': '99', 'VDOP': '99', 'Latitude Raw': 'N/A',
+                              'Longitude Raw': 'N/A', 'Position type': '1',
+                              'HDOP': '99', 'Sat_id_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'],
+                              'Sat_cnr_list': ['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']}
+        self.gps_info_dict = self.gps_info_null_dict.copy()
 
     def run(self):
-        self.run_flag = True
-        self.decoder.dbg_streaming()
-        while self.run_flag:
-            if self.decoder.transfer_buf != []:
-                # has new data
-                self.dbg_port_trigger.emit()
-'''
+        # this must be called run(), it is a function in QThread
+        while True:
+            buf = self.read_gps(500)
+            self.nmea_interpreter(buf)
+            self.gps_trigger.emit()
+            # time.sleep(0.5)
+
+    def read_gps(self, amount):
+        byte_buffer = self.ser.read(amount)
+        info_buffer = byte_buffer.decode('utf-8')
+        # print(info_buffer)
+        return info_buffer.split('\r\n')
+        # print(info_buffer.split('\r\n'))
+
+    def nmea_interpreter(self, info_buffer):
+        # print(info_buffer)
+        latitude_raw = ''
+        ns_indicator = ''
+        longitude_raw = ''
+        ew_indicator = ''
+        for msg in info_buffer:
+            msg_split = msg.split(',')
+            if '*' in msg_split[-1]:
+                # complete message, remove the checksum
+                msg_split[-1] = msg_split[-1].split('*')[0]
+                # begin to decode.
+                if msg_split[0] == '$GPRMC' and len(msg_split) == 13:
+                    # GPRMC message, check completeness
+                    # print(msg_split)
+                    self.gps_info_dict['UTC time'] = msg_split[1]
+                    latitude_raw = msg_split[3]
+                    ns_indicator= msg_split[4]  # north or south
+                    longitude_raw = msg_split[5]
+                    ew_indicator = msg_split[6]  # east or west
+                elif msg_split[0] == '$GPVTG' and len(msg_split) == 10:
+                    # GPVEG msg, complete
+                    # print(msg_split)
+                    if msg_split[7] != '':
+                        self.gps_info_dict['Ground speed'] = msg_split[7]
+                        self.gps_info_dict['Ground speed mps'] = '{0:5f}'.format(float(msg_split[7])/3.6)
+                    else:
+                        self.gps_info_dict['Ground speed'] = 'X'
+                        self.gps_info_dict['Ground speed mps'] = 'X'
+                    if msg_split[5] != '':
+                        self.gps_info_dict['Ground speed Knot'] = msg_split[5]
+                    else:
+                        self.gps_info_dict['Ground speed Knot'] = 'X'
+                    # print(msg_split)
+                elif msg_split[0] == '$GPGGA' and len(msg_split) == 15:
+                    # GPGGA msg, complete
+                    self.gps_info_dict['UTC time'] = msg_split[1]
+                    latitude_raw = msg_split[2]
+                    ns_indicator= msg_split[3]  # north or south
+                    longitude_raw = msg_split[4]
+                    ew_indicator = msg_split[5]  # east or west
+                    self.gps_info_dict['Available satellite'] = msg_split[7]
+                    self.gps_info_dict['HDOP'] = msg_split[8]
+                    self.gps_info_dict['Altitude'] = msg_split[9]
+                    self.gps_info_dict['Height of geoid'] = msg_split[11]
+                elif msg_split[0] == '$GPGSA' and len(msg_split) == 18:
+                    # GPGSA msg, complete
+                    self.gps_info_dict['Position type'] = msg_split[2]
+                    self.gps_info_dict['PDOP'] = msg_split[15]
+                    self.gps_info_dict['HDOP'] = msg_split[16]
+                    self.gps_info_dict['VDOP'] = msg_split[17]
+                elif msg_split[0] == '$GPGSV' and len(msg_split)%4 == 0:
+                    # GPGSV msg, most complicated one.
+                    if msg_split[3] != '':
+                        avail_sat = int(msg_split[3])
+                        self.gps_info_dict['Available satellite'] = msg_split[3]
+                    else:
+                        self.gps_info_dict['Available satellite'] = '0'
+                        continue
+                    # first put everything into default null list
+                    self.gps_info_dict['Sat_id_list'] = self.gps_info_null_dict['Sat_id_list']
+                    self.gps_info_dict['Sat_cnr_list'] = self.gps_info_null_dict['Sat_cnr_list']
+                    # print(msg_split)
+                    if msg_split[2] == '1':
+                        if avail_sat >= 1:
+                            self.gps_info_dict['Sat_id_list'][0] = msg_split[4]
+                            self.gps_info_dict['Sat_cnr_list'][0] = msg_split[7]
+                        if avail_sat >= 2:
+                            self.gps_info_dict['Sat_id_list'][1] = msg_split[8]
+                            self.gps_info_dict['Sat_cnr_list'][1] = msg_split[11]
+                        if avail_sat >= 3:
+                            self.gps_info_dict['Sat_id_list'][2] = msg_split[12]
+                            self.gps_info_dict['Sat_cnr_list'][2] = msg_split[15]
+                        if avail_sat >= 4:
+                            self.gps_info_dict['Sat_id_list'][3] = msg_split[16]
+                            self.gps_info_dict['Sat_cnr_list'][3] = msg_split[19]
+                    if msg_split[2] == '2':
+                        if avail_sat >= 5:
+                            self.gps_info_dict['Sat_id_list'][4] = msg_split[4]
+                            self.gps_info_dict['Sat_cnr_list'][4] = msg_split[7]
+                        if avail_sat >= 6:
+                            self.gps_info_dict['Sat_id_list'][5] = msg_split[8]
+                            self.gps_info_dict['Sat_cnr_list'][5] = msg_split[11]
+                        if avail_sat >= 7:
+                            self.gps_info_dict['Sat_id_list'][6] = msg_split[12]
+                            self.gps_info_dict['Sat_cnr_list'][6] = msg_split[15]
+                        if avail_sat >= 8:
+                            self.gps_info_dict['Sat_id_list'][7] = msg_split[16]
+                            self.gps_info_dict['Sat_cnr_list'][7] = msg_split[19]
+                    if msg_split[2] == '3':
+                        if avail_sat >= 9:
+                            self.gps_info_dict['Sat_id_list'][8] = msg_split[4]
+                            self.gps_info_dict['Sat_cnr_list'][8] = msg_split[7]
+                        if avail_sat >= 10:
+                            self.gps_info_dict['Sat_id_list'][9] = msg_split[8]
+                            self.gps_info_dict['Sat_cnr_list'][9] = msg_split[11]
+                        if avail_sat >= 11:
+                            self.gps_info_dict['Sat_id_list'][10] = msg_split[12]
+                            self.gps_info_dict['Sat_cnr_list'][10] = msg_split[15]
+                        if avail_sat >= 12:
+                            self.gps_info_dict['Sat_id_list'][11] = msg_split[16]
+                            self.gps_info_dict['Sat_cnr_list'][11] = msg_split[19]
+            else:
+                # incomplete GPS message
+                continue  # just a place holder.
+            # print(msg_split)
+        if latitude_raw != '':
+            # make sure the buffer has the info we want
+            self.gps_info_dict['Latitude Raw'] = latitude_raw
+            self.gps_info_dict['Longitude Raw'] = longitude_raw
+            self.gps_info_dict['Latitude'] = self.nmea_to_dms(latitude_raw) + ns_indicator
+            self.gps_info_dict['Longitude'] = self.nmea_to_dms(longitude_raw) + ew_indicator
+            self.gps_info_dict['Latitude Deg'] = self.nmea_to_decimal_deg(latitude_raw) + ns_indicator
+            self.gps_info_dict['Longitude Deg'] = self.nmea_to_decimal_deg(longitude_raw) + ew_indicator
+        else:
+            self.gps_info_dict['Latitude Raw'] = 'N/A'
+            self.gps_info_dict['Longitude Raw'] = 'N/A'
+            self.gps_info_dict['Latitude'] = 'N/A'
+            self.gps_info_dict['Longitude'] = 'N/A'
+            self.gps_info_dict['Latitude Deg'] = 'N/A'
+            self.gps_info_dict['Longitude Deg'] = 'N/A'
+
+    def nmea_to_decimal_deg(self, lat_long_str):
+        # convert to xxx.xxx deg
+        if lat_long_str != '':
+            divided = lat_long_str.split('.')
+            first_part = divided[0][:-2]
+            second_part = divided[0][-2:]
+            third_part = divided[1][:4]
+            float_num = float(first_part) + float(second_part)/60 + float(third_part)/600000
+            # print(float_num)
+            return '{0:4f}'.format(float_num)
+        else:
+            return 'N/A'
+
+    def nmea_to_dms(self, lat_long_str):
+        # convert to degree, minute, second format
+        if lat_long_str != '':
+            divided = lat_long_str.split('.')
+            first_part = divided[0][:-2]
+            second_part = divided[0][-2:]
+            third_part = divided[1][:4]
+            res = '{0}°{1}\'{2}\'\''.format(int(first_part),
+                                        int(second_part),
+                                        float(third_part)*6/1000)
+            # print(res)
+            return res
+        else:
+            return 'N/A'

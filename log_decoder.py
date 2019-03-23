@@ -97,19 +97,25 @@ class DebugLogDecoder(QThread):
         hex_list.reverse()
         for byte in hex_list:
             hex_string += byte
-        return int(hex_string, 16)
+        if hex_string == '':
+            print('[ERROR]: Empty hex list.')
+        else:
+            return int(hex_string, 16)
 
     def hex_to_ascii(self, byte_list):
         byte_str = ''
         byte_list.reverse()
         for b_ascii in byte_list:
-            if b_ascii != '00':
+            if b_ascii != '00' or int(b_ascii , 16) < 127:
                 byte_str += b_ascii
         return bytearray.fromhex(byte_str).decode()
 
 
     def parse_one_msg_common(self, data_flow):
         result_list = []
+        if len(data_flow) < 8:
+            print('[ERROR]: Insufficient message length. Missing information.')
+            return result_list
         msg_header = data_flow[0:8]
 
         msg_id_hex = msg_header[0:4]
@@ -257,9 +263,13 @@ class DebugLogDecoder(QThread):
         return timestamp  # the date is not important, just take a look into the log
 
     def packet_output_formatting(self, info_list):
+        if len(info_list) < 4:
+            print('[ERROR]: Incomplete message for formatting.')
+            return 'Incomplete Msg\n'
         if info_list[3] == 'N/A':
             return info_list[0] + ' Invalid Msg\n'  # this is an invalid packet. Remove these two lines if you want them.
         ret_msg = ''
+
         # Deal with the header
         header_list = info_list[:-1]  # order: seq_num, time, time tick, msg_id_decimal,
         # msg name, src, dest, msg length
@@ -436,6 +446,7 @@ class UlvLogDecoder(DebugLogDecoder):
 
         display_list += [msg_counter, time_stamp, time_tick]
         meaning_list = self.parse_one_msg_common(data_flow[8:])  # remove the parsed field
+
         return display_list + meaning_list
 
 
@@ -601,13 +612,15 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
     def display_export_processing(self, info_list):
 
-        res = self.packet_output_formatting(info_list)
+        self.res = self.packet_output_formatting(info_list)
 
         if self.config['Simplify log'] is True:
-            res_disp = res.split('\n')[0] + '\n' # Truncate the result and keep only the first line.
+            res_disp = self.res.split('\n')[0] + '\n' # Truncate the result and keep only the first line.
         else:
-            res_disp = res
+            res_disp = self.res
 
+        if len(info_list) <= 5:
+            print('[ERROR]: Missing element in Info List.')
         is_filtered = self.check_filters(info_list[4])
 
         if is_filtered is False:
@@ -628,7 +641,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             if is_filtered is False:
                 # This log need to be export
                 if self.config['Export format'] == 'txt':
-                    self.f_exp.write(res)
+                    self.f_exp.write(self.res)
                 elif self.config['Export format'] == 'csv':
                     self.f_exp_csv_writer.writerow(info_list)
 
@@ -738,6 +751,9 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         # This is the entry of extracting important information from the log lively.
         # Currently we only implement the live measurement result update + important log display.
         # If there is any log processing code, append to this function.
+        if len(decoded_list) == 0:
+            print('[ERROR]: Empty decoded list.')
+            return
         live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND',]
         important_log_list = []
         msg_name = decoded_list[1]
