@@ -40,7 +40,7 @@ class GPSTabview(QWidget):
         self.contral_panel.setStyleSheet(self.groupbox_stylesheet)
         self.map_viewer = QWebEngineView()
         self.init_ui(available_serials)
-        # self.update_map()   #更新gps信息到在线地图
+        # self.update_map()
         self.layout_map.addWidget(self.map_viewer)
         gps_main_layout.addLayout(self.layout_map)
         gps_main_layout.setStretchFactor(self.layout_map, 5)
@@ -137,20 +137,20 @@ class GPSTabview(QWidget):
             GPS_com_port = self.GPS_Port.currentText()
             GPS_baud = self.GPS_baud.currentText()
             self.gps_handler = GpsController(GPS_com_port, GPS_baud)
-            if self.manual_update_check.checkState():  # 手动更新
+            if self.manual_update_check.checkState():
                 self.flag = 1
-                self.update_gps_info()  # 更新GPS信息
-            if self.auto_update_check.checkState():  # 自动更新
+                self.update_gps_info()
+            if self.auto_update_check.checkState():
                 self.flag = 3
-                self.update_gps_info()  # 更新GPS信息
+                self.update_gps_info()
             self.gps_flag = 1
         else:
-            if self.manual_update_check.checkState():  # 手动更新
+            if self.manual_update_check.checkState():
                 self.flag = 1
-                self.update_gps_info()  # 更新GPS信息
-            if self.auto_update_check.checkState():  # 自动更新
+                self.update_gps_info()
+            if self.auto_update_check.checkState():
                 self.flag = 3
-                self.update_gps_info()  # 更新GPS信息
+                self.update_gps_info()
 
     def load_map(self, Lat, Lon):
         if self.map_flag == 0:
@@ -249,7 +249,7 @@ class GPSTabview(QWidget):
                 self.Lon_dms.setText(self.gps_live_data['Longitude'])
                 Lon = self.gps_live_data['Latitude Deg']
                 Lat = self.gps_live_data['Longitude Deg']
-                self.load_map(Lat, Lon)  # 更新地图
+                self.load_map(Lat, Lon)
 
             else:
                 self.Lat_raw_data.setText(self.gps_live_data['Latitude'])

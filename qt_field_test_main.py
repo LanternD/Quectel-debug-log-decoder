@@ -13,10 +13,10 @@ VERSION = '0.4 Beta'
 LAST_UPDATE = '2019.03.23'
 
 
-class DebugLogAnalyzer(QMainWindow):
+class QuectelDebugLogAnalyzer(QMainWindow):
 
     def __init__(self):
-        super(DebugLogAnalyzer, self).__init__()
+        super(QuectelDebugLogAnalyzer, self).__init__()
         self.version = VERSION
         self.title = 'Quectel UE Debug Log Assistant ' + self.version
         self.left = 50
@@ -77,8 +77,8 @@ class DebugLogAnalyzer(QMainWindow):
         help_menu.addAction(about_button)
 
         # add tabView
-        self.main_view = LogDecoderTabview()
-        self.setCentralWidget(self.main_view)
+        # self.main_view = LogDecoderTabview()
+        # self.setCentralWidget(self.main_view)
 
         self.table_widget = MainWindowTabview()
         self.setCentralWidget(self.table_widget)
@@ -94,7 +94,7 @@ class DebugLogAnalyzer(QMainWindow):
 def run():
     # do some system/computer specific settings
     my_name = getpass.getuser()
-    print('Username:', my_name)
+    print('[INFO] Username:', my_name)
     if my_name == 'lenovo':
         os.putenv('QT_SCALE_FACTOR', '1.0')
     elif my_name == 'SequoiaX':
@@ -107,7 +107,7 @@ def run():
         my_app.setFont(local_font)
     # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
     # my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())  # dark mode. You need to run `pip install qdarkstyle` first.
-    ex = DebugLogAnalyzer()
+    ex = QuectelDebugLogAnalyzer()
     sys.exit(my_app.exec_())
 
 

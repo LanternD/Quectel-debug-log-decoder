@@ -6,39 +6,42 @@ from GpsQtGui import GPSTabview
 
 class MainWindowTabview(QWidget):
     def __init__(self, parent=None):
-        super(QWidget, self).__init__(parent)
-        self.layout = QVBoxLayout(self)
+        super(MainWindowTabview, self).__init__(parent)
+        main_layout = QVBoxLayout(self)
 
         # Initialize tab screen
-        self.tabs = QTabWidget()
-        self.tab1 = QWidget()
-        self.tab2 = QWidget()
-        self.tab3 = QWidget()
-        self.tabs.resize(300, 200)
+        tabs = QTabWidget()
+        tab1 = QWidget()
+        tab2 = QWidget()
+        tab3 = QWidget()
+        tabs.resize(300, 200)
 
         # Add tabs
-        self.tabs.addTab(self.tab1, 'Debug Log Decoder')
-        self.tabs.addTab(self.tab2, 'Power Monitor')
-        self.tabs.addTab(self.tab3, 'GPS')
+        tabs.addTab(tab1, 'Debug Log Decoder')
+        # self.tabs.addTab(self.tab2, 'Power Monitor')
+        # self.tabs.addTab(self.tab3, 'GPS')
 
         # Create debug_log tab
-        self.main_view = LogDecoderTabview()
-        self.tab1.layout = QVBoxLayout(self)
-        self.tab1.layout.addWidget(self.main_view)
-        self.tab1.setLayout(self.tab1.layout)
+        main_view = LogDecoderTabview()
+        tab1.layout = QVBoxLayout()
+        tab1.layout.addWidget(main_view)
+        tab1.setLayout(tab1.layout)
 
-        # Create power_monitor tab
-        self.power_monitor_view = CurrentLivePlotter()
-        self.tab2.layout = QVBoxLayout(self)
-        self.tab2.layout.addWidget(self.power_monitor_view)
-        self.tab2.setLayout(self.tab2.layout)
+        # TODO: Add enable flags to the power monitor and GPS module.
 
-        # Create gps_map tab
-        self.gps_map = GPSTabview()
-        self.tab3.layout = QVBoxLayout(self)
-        self.tab3.layout.addWidget(self.gps_map)
-        self.tab3.setLayout(self.tab3.layout)
+        if False:
+            # Create power_monitor tab
+            power_monitor_view = CurrentLivePlotter()
+            tab2.layout = QVBoxLayout()
+            tab2.layout.addWidget(power_monitor_view)
+            tab2.setLayout(tab2.layout)
+
+            # Create gps_map tab
+            gps_map = GPSTabview()
+            tab3.layout = QVBoxLayout()
+            tab3.layout.addWidget(gps_map)
+            tab3.setLayout(tab3.layout)
 
         # Add tabs to widget
-        self.layout.addWidget(self.tabs)
-        self.setLayout(self.layout)
+        main_layout.addWidget(tabs)
+        self.setLayout(main_layout)

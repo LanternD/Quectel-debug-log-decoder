@@ -90,6 +90,10 @@ class DebugLogDecoder(QThread):
 
     def hex_to_decimal(self, hex_list):
         # note that the string list is LSB first, for example, 12-34-aa is 0xAA3412
+        if len(hex_list) == 0:
+            # input an empty string or list
+            print('[ERROR]: Empty hex list.')
+            return -1
         if type(hex_list) == str:
             # basically there is ONLY ONE byte.
             return int(hex_list, 16)
@@ -97,10 +101,11 @@ class DebugLogDecoder(QThread):
         hex_list.reverse()
         for byte in hex_list:
             hex_string += byte
-        if hex_string == '':
-            print('[ERROR]: Empty hex list.')
-        else:
+        try:
             return int(hex_string, 16)
+        except ValueError:
+            print(hex_string)
+            return -1
 
     def hex_to_ascii(self, byte_list):
         byte_str = ''
@@ -466,6 +471,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         self.f_exp = None
         self.f_exp_csv_writer = None
+        self.res = None  # decoded results.
 
         self.filter_out_count = 0  # Record the discarded log count
         self.filter_in_count = 0  # Record the kept log count
@@ -502,7 +508,13 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
     def read_byte(self, num):
         # Read byte from debug UART and format it.
-        return self.dbg_uart_handler.read(num).hex().upper()  # hex() converts byte to str.
+        # TODO: try to find the reason for "read failed: device reports readiness to
+        #  read but returned no data (device disconnected or multiple access on port?)"
+        try:
+            msg = self.dbg_uart_handler.read(num).hex().upper()  # hex() converts byte to str.
+        except serial.serialutil.SerialException:
+            msg = ''
+        return msg
 
     def run(self):
         states = {'UNKNOWN': 0, 'PREAMBLE': 1, 'COUNT': 2, 'TICK': 3,
@@ -568,6 +580,9 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 time_tick = self.hex_to_decimal(str_buf)
                 parsed_log_list[2] = time_tick  # Update the dict
                 dummy = self.read_byte(4)  # Neglect the useless bytes.
+                if len(dummy) == 0:
+                    st = states['PREAMBLE']
+                    continue
                 if dummy[0] == 'A':  # This is an application report message
                     app_rep_flag = True
                     parsed_log_list.append('APPLICATION_REPORT')
@@ -598,7 +613,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 else:
                     disp_list = self.parse_one_msg_common(
                         str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
-                    self.extract_info_from_log(disp_list)
+                    # TODO: Bookmarked. extract info from log.
+                    # self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list
                     self.display_export_processing(parsed_log_list)
                     # print(parsed_log_dict)
@@ -757,7 +773,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         if len(decoded_list) == 0:
             print('[ERROR]: Empty decoded list.')
             return
-        live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND', ]
+        live_measurement_log_list = ['LL1_LOG_ECL_INFO', 'PROTO_LL1_SERVING_CELL_MEASUREMENT_IND']
         important_log_list = []
         msg_name = decoded_list[1]
 

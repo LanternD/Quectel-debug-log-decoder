@@ -32,7 +32,7 @@ class UeAtController(object):
         # ret_msg = ''
         byte_flow = b''
         count = 0
-        while count <= 1200:
+        while count <= 500:
             # a simple AT return result parser
             new_char = self.ser.read(1)
             count += 1

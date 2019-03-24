@@ -181,7 +181,7 @@ class LogDecoderTabview(QWidget):
         config_h_layout.addWidget(dbg_label)
         config_h_layout.addWidget(dbg_port_label)
         config_h_layout.addWidget(self.dbg_port_cbb)
-        config_h_layout.addWidget(dbg_baud_info)
+        # config_h_layout.addWidget(dbg_baud_info)
 
         config_h_layout.addStretch()
 
@@ -239,6 +239,7 @@ class LogDecoderTabview(QWidget):
         self.main_monitor.setPlaceholderText('Display AT command response and debug log.')
         self.main_monitor_cursor = self.main_monitor.textCursor()
         self.main_monitor.setFont(QFont('Courier New', 10))
+        self.main_monitor.setTabStopWidth(4)
         # self.main_monitor.setMaximumWidth(750)
 
         secondary_monitor_h_layout = QHBoxLayout()
@@ -637,11 +638,16 @@ class LogDecoderTabview(QWidget):
         # TODO: add the close downlink test code if downlink measurement is enabled.
         # Close the device handlers
         self.ue_handler.ser.close()
-        del self.ue_handler
+        print('UE AT serial handler closed.')
         self.decoder.dbg_run_flag = False
         self.decoder.dbg_uart_handler.close()
         while self.decoder.isRunning():
+            # TODO: fix the that the program fails to stop running
+            print('Run here.')
+            time.sleep(0.5)
+            self.decoder.terminate()
             continue
+        del self.ue_handler
         del self.decoder
 
         self.append_sys_log('Debug port stopped.')

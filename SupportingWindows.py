@@ -7,6 +7,7 @@ import os.path
 VERSION = '0.2 Beta'
 LAST_UPDATE = '2018.09.15'
 
+
 class AboutMessageBox(QDialog):
 
     def __init__(self, parent=None):
@@ -61,11 +62,26 @@ class KeyLogConfigurator(QDialog):
 
         key_log_selection_g_layout = QGridLayout()
         self.key_check_box_list = []
+
+        self.CB__RLC_UL_FILL_SRB1_TX_DATA = QCheckBox('RLC_UL_FILL_SRB1_TX_DATA')
+        #self.CB__RLC_UL_FILL_SRB1_TX_DATA.setChecked(True)
+        self.key_check_box_list.append(self.CB__RLC_UL_FILL_SRB1_TX_DATA)
+        self.CB_NAS_DBG_NAS_MSG = QCheckBox('NAS_DBG_NAS_MSG')
+        #self.CB_NAS_DBG_NAS_MSG.setChecked(True)
+        self.key_check_box_list.append(self.CB_NAS_DBG_NAS_MSG)
+        self.CB_ACK = QCheckBox('ACK')
+        #self.CB_ACK.setChecked(True)
+        self.key_check_box_list.append(self.CB_ACK)
+        self.CB_LL1_DCI = QCheckBox('LL1_DCI')
+        #self.CB_LL1_DCI.setChecked(True)
+        self.key_check_box_list.append(self.CB_LL1_DCI)
+
+        '''
         for item in self.key_log_selection_result:
             check_box_temp = QCheckBox(item)
             self.key_check_box_list.append(check_box_temp)
             check_box_temp.setChecked(True)
-
+        '''
         # self.key_check_box_list.append(QCheckBox('RLC_UL_FILL_SRB1_TX_DATA'))
         # self.key_check_box_list.append(QCheckBox('NAS_DBG_NAS_MSG'))
         # self.key_check_box_list.append(QCheckBox('ACK'))
@@ -97,3 +113,4 @@ class KeyLogConfigurator(QDialog):
             if cb.isChecked():
                 log_temp = str(cb.text())
                 self.key_log_selection_result.append(log_temp)
+
