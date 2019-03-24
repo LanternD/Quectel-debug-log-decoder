@@ -36,7 +36,7 @@ class GPSTabview(QWidget):
                                    'font-weight: bold;} ' \
                                    'Widget {font-weight: normal;}'
         self.layout_map = QVBoxLayout()
-        self.contral_panel = QGroupBox('GPS Informaiton')
+        self.contral_panel = QGroupBox('GPS Information')
         self.contral_panel.setStyleSheet(self.groupbox_stylesheet)
         self.map_viewer = QWebEngineView()
         self.init_ui(available_serials)
@@ -50,7 +50,8 @@ class GPSTabview(QWidget):
         self.init_map()
 
     def init_map(self):
-        map_string = './assets/baidu_map_interface.html'
+        import os
+        map_string = os.getcwd() + '/assets/baidu_map_interface.html'
         self.map_viewer.load(QUrl(map_string))
 
     def init_ui(self, available_serials):
@@ -82,7 +83,7 @@ class GPSTabview(QWidget):
 
         baud_options = [4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
         baud_options_str = [str(x) for x in baud_options]
-        GPS_baud_label = QLabel('Baud  Rate:')
+        GPS_baud_label = QLabel('Baud Rate:')
         GPS_baud_label.setFont(QFont('Arial', 11))
         self.GPS_baud = QComboBox()
         self.GPS_baud.addItems(baud_options_str)
@@ -178,7 +179,7 @@ class GPSTabview(QWidget):
                 self.map_flag += 1
                 self.Last_Lat = Lat
                 self.Last_Lon = Lon
-                self.gps_sys_info.appendPlainText('Loacation has not changed')
+                self.gps_sys_info.appendPlainText('Location has not changed')
 
     def update_gps_info(self):
         if self.gps_handler != None:

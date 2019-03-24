@@ -32,7 +32,7 @@ class QuectelDebugLogAnalyzer(QMainWindow):
         my_desktop = QDesktopWidget()
         screen = my_desktop.screenGeometry()
         screen_height = screen.height()
-        print('Screen resolution:', screen.width(), 'x', screen_height)
+        print('[DEBUG] Screen resolution:', screen.width(), 'x', screen_height)
         self.small_screen_flag = False
         if screen_height < 1000:
             self.small_screen_flag = True
@@ -94,7 +94,7 @@ class QuectelDebugLogAnalyzer(QMainWindow):
 def run():
     # do some system/computer specific settings
     my_name = getpass.getuser()
-    print('[INFO] Username:', my_name)
+    print('[DEBUG] Username:', my_name)
     if my_name == 'lenovo':
         os.putenv('QT_SCALE_FACTOR', '1.0')
     elif my_name == 'SequoiaX':

@@ -49,7 +49,7 @@ class LogDecoderTabview(QWidget):
 
         # Find available serial devices.
         available_serials = list_serial_ports()
-        print('Available seiral ports:', available_serials)
+        print('[INFO] Available serial ports:', available_serials)
 
         # Create main window layout
         self.create_serial_config_module(available_serials)  # self.serial_config_gbox is ready
@@ -607,7 +607,7 @@ class LogDecoderTabview(QWidget):
     @pyqtSlot(name='BTN_RSP_SEND_AT_CMD')
     def btn_fn_send_at_command(self, idx):
         input_command = self.at_command_input_list[idx].text().upper()
-        print('Send AT Command:', 'AT+' + input_command)
+        print('[INFO] Send AT Command:', 'AT+' + input_command)
         self.qt_process_at_command(input_command)
 
     # # Session start/stop control
@@ -624,7 +624,7 @@ class LogDecoderTabview(QWidget):
             self.run_status = True
         else:
             # self.append_sys_log('Error in config setting detected.')
-            print('Error in config setting detected.')
+            print('[ERROR] Configuration error detected.')
 
     @pyqtSlot(name='STOP_SESSION')
     def btn_fn_stop(self):
@@ -638,12 +638,12 @@ class LogDecoderTabview(QWidget):
         # TODO: add the close downlink test code if downlink measurement is enabled.
         # Close the device handlers
         self.ue_handler.ser.close()
-        print('UE AT serial handler closed.')
+        print('[INFO] UE AT serial handler closed.')
         self.decoder.dbg_run_flag = False
         self.decoder.dbg_uart_handler.close()
         while self.decoder.isRunning():
             # TODO: fix the that the program fails to stop running
-            print('Run here.')
+            print('[INFO] Debug log is Still running.')
             time.sleep(0.5)
             self.decoder.terminate()
             continue
@@ -669,10 +669,10 @@ class LogDecoderTabview(QWidget):
                 self.config['UL packet num'] = int(packet_num)
                 self.config['UL packet delay'] = int(delay)
             except ValueError:
-                self.append_sys_log('[Error] Invalid argument in uplink test settings.')
+                self.append_sys_log('[ERROR] Invalid argument in uplink test settings.')
                 return -1
 
-            print('Uplink test setting: num={0}, len={1}, delay={2}'.format(self.config['UL packet num'],
+            print('[INFO] Uplink test setting: num={0}, len={1}, delay={2}'.format(self.config['UL packet num'],
                                                                             self.config['UL packet len'],
                                                                             self.config['UL packet delay']))
 

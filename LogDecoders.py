@@ -27,7 +27,7 @@ class DebugLogDecoder(QThread):
         elif self.device_name == 'BC95':
             self.decoder_xml = 'messages_bc95.xml'
         else:
-            print('Unsupported device. Change the device or check the spell.')
+            print('[ERROR] Unsupported device. Change the device or check the spell.')
             self.decoder_xml = None
         self.tag_name_prefix = '{http://tempuri.org/xmlDefinition.xsd}'
         self.message_dict = {}
@@ -71,28 +71,28 @@ class DebugLogDecoder(QThread):
                 msg_type_size = field[3].text
                 # print(msg_type)
                 type_set[msg_type] = msg_type_size
-        print('Message dict length:', len(self.message_dict))
+        print('[INFO] Message dict length:', len(self.message_dict))
         # print(type_set)
-        print('Available types:', len(type_set))
+        print('[INFO] Available types:', len(type_set))
 
     def filter_dict_checker(self):
 
         if len(self.filter_dict['FO']) > 0 and len(self.filter_dict['FI']) > 0:
-            raise ValueError('Invalid arguments in the filter dictionary! Check and rerun.')
+            raise ValueError('[ERROR] Invalid arguments in the filter dictionary! Check and rerun.')
         filter_flag = 0
         if len(self.filter_dict['FO']) > 0:
             filter_flag = 1
-            print('Filter-Out enabled.')
+            print('[CONFIG] Filter-Out enabled.')
         elif len(self.filter_dict['FI']) > 0:
             filter_flag = 2
-            print('Filter-In enabled.')
+            print('[CONFIG] Filter-In enabled.')
         return filter_flag
 
     def hex_to_decimal(self, hex_list):
         # note that the string list is LSB first, for example, 12-34-aa is 0xAA3412
         if len(hex_list) == 0:
             # input an empty string or list
-            print('[ERROR]: Empty hex list.')
+            print('[ERROR] Empty hex list.')
             return -1
         if type(hex_list) == str:
             # basically there is ONLY ONE byte.
@@ -118,7 +118,7 @@ class DebugLogDecoder(QThread):
     def parse_one_msg_common(self, data_flow):
         result_list = []
         if len(data_flow) < 8:
-            print('[ERROR]: Insufficient message length. Missing information.')
+            print('[ERROR] Insufficient message length. Missing information.')
             return result_list
         msg_header = data_flow[0:8]
 
@@ -268,7 +268,7 @@ class DebugLogDecoder(QThread):
 
     def packet_output_formatting(self, info_list):
         if len(info_list) < 4:
-            print('[ERROR]: Incomplete message for formatting.')
+            print('[ERROR] Incomplete message for formatting.')
             return 'Incomplete Msg\n'
         if info_list[3] == 'N/A':
             return info_list[
@@ -320,7 +320,7 @@ class DebugLogDecoder(QThread):
         stat_mat = []
         ignored_layers = []  # ['LL1', 'UICC', 'DSP', '0 count']
 
-        print('Source Layer stats:')
+        print('[INFO] Source Layer stats:')
         for key in sorted(self.src_layer_stat.keys()):
             val = self.src_layer_stat[key]
             if key in ignored_layers:
@@ -355,7 +355,7 @@ class DebugLogDecoder(QThread):
     def export_src_dest_pair(self, output_name_prefix):
         ignored_pairs = ['DSP->LL1', 'LL1->DSP', 'LL1->LL1', 'UICC->UICC']
 
-        print('Total number of available msg type:', len(self.src_dest_pair_stat))
+        print('[INFO] Total number of available msg type:', len(self.src_dest_pair_stat))
         with open(self.decode_output_dir + output_name_prefix + '_pair_stats.csv', 'w', newline='') as my_file:
             my_csv_writer = csv.writer(my_file)
             my_csv_writer.writerow(['src->dest', 'count'])
@@ -412,19 +412,19 @@ class UlvLogDecoder(DebugLogDecoder):
                 if save_to_file_flag:
                     f_write.write(formatted_res + '\n')
                     if count % 1000 == 0:
-                        print('{0} messages are processed.'.format(count))
+                        print('[INFO] {0} messages are processed.'.format(count))
                 else:
                     print(formatted_res)  # the actual meanings of each packet
-            print('All messages are decoded.\n')
+            print('[INFO] All messages are decoded.\n')
             if self.filter_flag == 1:
                 print('Filter-out count:', filter_out_count)
             elif self.filter_flag == 2:
-                print('Filter-in count:', count)
+                print('[INFO] Filter-in count:', count)
 
         if save_to_file_flag:
             f_write.flush()
             f_write.close()
-            print('Results have been write to file.')
+            print('[INFO] Results have been write to file.')
             # print(res)
 
     def parse_one_msg_ulv(self, buf_line):  # Message recorded by UELogViewer
@@ -625,7 +625,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     self.f_exp.flush()
                 st = states['PREAMBLE']  # Recycle the UART state machine
             elif st == states['UNKNOWN']:
-                print('Something wrong happens. Reset to PREAMBLE state.')
+                print('[ERROR] Something wrong happens. Reset to PREAMBLE state.')
                 st = states['PREAMBLE']
 
     def display_export_processing(self, info_list):
@@ -638,7 +638,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             res_disp = self.res
 
         if len(info_list) <= 5:
-            print('[ERROR]: Missing element in Info List.')
+            print('[ERROR] Missing element in Info List.')
         is_filtered = self.check_filters(info_list[4])
 
         if is_filtered is False:
@@ -707,13 +707,13 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 self.filter_out_count += 1
 
         if self.filter_out_count % 1000 == 0 and self.filter_out_count > 0:
-            filter_out_msg = 'INFO: excluded log count: {0}'.format(self.filter_out_count)
+            filter_out_msg = '[INFO] Excluded log count: {0}'.format(self.filter_out_count)
             print(filter_out_msg)
             if self.config['Run in Qt']:
                 self.sys_info_buf.append(filter_out_msg)
                 self.dbg_uart_trigger.emit()  # Tell the main thread to update the system info monitor.
         if self.filter_in_count % 500 == 0 and self.filter_in_count > 0:
-            filter_in_msg = 'INFO: included log count: {0}'.format(self.filter_in_count)
+            filter_in_msg = '[INFO] Included log count: {0}'.format(self.filter_in_count)
             print(filter_in_msg)
             if self.config['Run in Qt']:
                 self.sys_info_buf.append(filter_in_msg)
@@ -740,7 +740,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         try:
             timestamp_raw = float(header_split[1])
         except ValueError:
-            print('Unknown timestamp value.')
+            print('[ERROR] Unknown timestamp value.')
             return log_detail
 
         time_new = timestamp_raw  # For initialization only
