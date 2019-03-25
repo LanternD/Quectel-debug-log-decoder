@@ -16,18 +16,19 @@
 </html>
 <script type="text/javascript">
 
-	var map = new BMap.Map("allmap");
-	map.centerAndZoom(new BMap.Point(114.197574, 22.32383), 18);
+	var map = new BMap.Map("allmap", {minzoom:4, maxzoom:8});
+	// map.centerAndZoom(new BMap.Point(114.197574, 22.32383), 18);
+	map.centerAndZoom(new BMap.Point(118.797574,31.94383), 14);
 	// Add navigation controller
   	var navigationControl = new BMap.NavigationControl({
-    	// put navi on the corner
     	anchor: BMAP_ANCHOR_TOP_LEFT,
-   		 // small control type
     	type: BMAP_NAVIGATION_CONTROL_SMALL,
   	});
 
   	map.addControl(navigationControl);
-	map.enableScrollWheelZoom(true);
+
+	map.enableScrollWheelZoom();
+	map.setMaxZoom(19);
 
 	function add_polyline(Lat1, Lon1, Lat2, Lon2, Line_color) {
 		var polyline = new BMap.Polyline([
@@ -40,6 +41,10 @@
     }
 
     function add_point(Lat, Lon){
+    	var centerFlag = 1;
+    	if (centerFlag){
+    		map.centerAndZoom(new BMap.Point(Lat, Lon), 18);
+    	}
 	    var new_point = new BMap.Point(Lat, Lon);
 		var marker = new BMap.Marker(new_point);
 		map.addOverlay(marker);

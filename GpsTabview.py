@@ -13,17 +13,17 @@ from DeviceHandlers import GpsController
 from utils import list_serial_ports
 
 
-class GPSTabview(QWidget):
+class GpsTabview(QWidget):
 
     def __init__(self, parent=None):
 
-        super(GPSTabview, self).__init__(parent)
+        super(GpsTabview, self).__init__(parent)
 
-        self.Lat = '114.197574'  # Latitude
-        self.Lon = '22.32383'  # Longitude
+        self.lat = '114.197574'  # Latitude
+        self.long = '22.32383'  # Longitude
 
-        self.Last_Lat = ''
-        self.Last_Lon = ''
+        self.last_lat = ''
+        self.last_long = ''
 
         self.flag = -1
         self.gps_flag = 0
@@ -51,43 +51,45 @@ class GPSTabview(QWidget):
 
     def init_map(self):
         import os
-        map_string = os.getcwd() + '/assets/baidu_map_interface.html'
-        self.map_viewer.load(QUrl(map_string))
+        map_html_path = 'file://' + os.getcwd() + '/assets/baidu_map_interface.html'
+        print(map_html_path)
+        # map_html_path = 'http://www.qt.io/'
+        self.map_viewer.load(QUrl(map_html_path))
 
     def init_ui(self, available_serials):
         contral_layout = QHBoxLayout()
         container_layout = QGridLayout()
-        Lat_label = QtGui.QLabel('Latitude:')
-        Lat_label.setFont(QFont('Arial', 14))
-        Lon_label = QtGui.QLabel('Longitude:')
-        Lon_label.setFont(QFont('Arial', 14))
+        lat_label = QtGui.QLabel('Latitude:')
+        lat_label.setFont(QFont('Arial', 14))
+        lon_label = QtGui.QLabel('Longitude:')
+        lon_label.setFont(QFont('Arial', 14))
 
-        Lat_raw_data_label = QtGui.QLabel('Raw Data:')
-        self.Lat_raw_data = QLineEdit('')
-        Lat_decimal_label = QtGui.QLabel('Decimal Degree:')
-        self.Lat_decimal = QLineEdit('')
-        Lat_dms_label = QtGui.QLabel('DMS Format:')
-        self.Lat_dms = QLineEdit('')
+        lat_raw_data_label = QtGui.QLabel('Raw Data:')
+        self.lat_raw_data = QLineEdit('')
+        lat_decimal_label = QtGui.QLabel('Decimal Degree:')
+        self.lat_decimal = QLineEdit('')
+        lat_dms_label = QtGui.QLabel('DMS Format:')
+        self.lat_dms = QLineEdit('')
 
-        Lon_raw_data_label = QtGui.QLabel('Raw Data:')
-        self.Lon_raw_data = QLineEdit('')
-        Lon_decimal_label = QtGui.QLabel('Decimal Degree:')
-        self.Lon_decimal = QLineEdit('')
-        Lon_dms_label = QtGui.QLabel('DMS Format:')
-        self.Lon_dms = QLineEdit('')
+        lon_raw_data_label = QtGui.QLabel('Raw Data:')
+        self.lon_raw_data = QLineEdit('')
+        lon_decimal_label = QtGui.QLabel('Decimal Degree:')
+        self.lon_decimal = QLineEdit('')
+        lon_dms_label = QtGui.QLabel('DMS Format:')
+        self.lon_dms = QLineEdit('')
 
-        GPS_port_label = QLabel('GPS  Port:')
-        GPS_port_label.setFont(QFont('Arial', 11))
-        self.GPS_Port = QComboBox()
-        self.GPS_Port.addItems(available_serials)
+        gps_port_label = QLabel('GPS  Port:')
+        gps_port_label.setFont(QFont('Arial', 11))
+        self.gps_port = QComboBox()
+        self.gps_port.addItems(available_serials)
 
         baud_options = [4800, 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
         baud_options_str = [str(x) for x in baud_options]
-        GPS_baud_label = QLabel('Baud Rate:')
-        GPS_baud_label.setFont(QFont('Arial', 11))
-        self.GPS_baud = QComboBox()
-        self.GPS_baud.addItems(baud_options_str)
-        self.GPS_baud.setCurrentIndex(baud_options_str.index('115200'))
+        gps_baud_label = QLabel('Baud Rate:')
+        gps_baud_label.setFont(QFont('Arial', 11))
+        self.gps_baud = QComboBox()
+        self.gps_baud.addItems(baud_options_str)
+        self.gps_baud.setCurrentIndex(baud_options_str.index('115200'))
 
         self.stop_update_btn = QPushButton('Stop Update')
         self.stop_update_btn.clicked.connect(self.stop_update)
@@ -97,6 +99,7 @@ class GPSTabview(QWidget):
 
         self.auto_update_check = QCheckBox('Auto_Update')
         self.auto_update_check.setChecked(False)
+        self.map_viewer.show()
         self.manual_update_check = QCheckBox('Manual_Update')
         self.manual_update_check.setChecked(True)
 
@@ -104,29 +107,29 @@ class GPSTabview(QWidget):
                                            'if there is any.')
 
         container_layout.addWidget(self.gps_sys_info, 0, 0, 4, 4)
-        container_layout.addWidget(Lat_label, 0, 4, 1, 1)
-        container_layout.addWidget(Lon_label, 2, 4, 1, 1)
+        container_layout.addWidget(lat_label, 0, 4, 1, 1)
+        container_layout.addWidget(lon_label, 2, 4, 1, 1)
 
-        container_layout.addWidget(Lat_raw_data_label, 1, 4, 1, 1)
-        container_layout.addWidget(self.Lat_raw_data, 1, 5, 1, 1)
-        container_layout.addWidget(Lat_decimal_label, 1, 6, 1, 1)
-        container_layout.addWidget(self.Lat_decimal, 1, 7, 1, 1)
-        container_layout.addWidget(Lat_dms_label, 1, 8, 1, 1)
-        container_layout.addWidget(self.Lat_dms, 1, 9, 1, 1)
+        container_layout.addWidget(lat_raw_data_label, 1, 4, 1, 1)
+        container_layout.addWidget(self.lat_raw_data, 1, 5, 1, 1)
+        container_layout.addWidget(lat_decimal_label, 1, 6, 1, 1)
+        container_layout.addWidget(self.lat_decimal, 1, 7, 1, 1)
+        container_layout.addWidget(lat_dms_label, 1, 8, 1, 1)
+        container_layout.addWidget(self.lat_dms, 1, 9, 1, 1)
 
-        container_layout.addWidget(Lon_raw_data_label, 3, 4, 1, 1)
-        container_layout.addWidget(self.Lon_raw_data, 3, 5, 1, 1)
-        container_layout.addWidget(Lon_decimal_label, 3, 6, 1, 1)
-        container_layout.addWidget(self.Lon_decimal, 3, 7, 1, 1)
-        container_layout.addWidget(Lon_dms_label, 3, 8, 1, 1)
-        container_layout.addWidget(self.Lon_dms, 3, 9, 1, 1)
+        container_layout.addWidget(lon_raw_data_label, 3, 4, 1, 1)
+        container_layout.addWidget(self.lon_raw_data, 3, 5, 1, 1)
+        container_layout.addWidget(lon_decimal_label, 3, 6, 1, 1)
+        container_layout.addWidget(self.lon_decimal, 3, 7, 1, 1)
+        container_layout.addWidget(lon_dms_label, 3, 8, 1, 1)
+        container_layout.addWidget(self.lon_dms, 3, 9, 1, 1)
 
         container_layout.addWidget(self.auto_update_check, 0, 10, 1, 1)
         container_layout.addWidget(self.manual_update_check, 0, 11, 1, 1)
-        container_layout.addWidget(GPS_port_label, 1, 10, 1, 1)
-        container_layout.addWidget(self.GPS_Port, 1, 11, 1, 1)
-        container_layout.addWidget(GPS_baud_label, 2, 10, 1, 1)
-        container_layout.addWidget(self.GPS_baud, 2, 11, 1, 1)
+        container_layout.addWidget(gps_port_label, 1, 10, 1, 1)
+        container_layout.addWidget(self.gps_port, 1, 11, 1, 1)
+        container_layout.addWidget(gps_baud_label, 2, 10, 1, 1)
+        container_layout.addWidget(self.gps_baud, 2, 11, 1, 1)
 
         container_layout.addWidget(self.update_geolog_btn, 3, 10, 1, 1)
         container_layout.addWidget(self.stop_update_btn, 3, 11, 1, 1)
@@ -135,9 +138,9 @@ class GPSTabview(QWidget):
 
     def update(self):
         if self.gps_flag == 0:
-            GPS_com_port = self.GPS_Port.currentText()
-            GPS_baud = self.GPS_baud.currentText()
-            self.gps_handler = GpsController(GPS_com_port, GPS_baud)
+            gps_com_port = self.gps_port.currentText()
+            gps_baud = self.gps_baud.currentText()
+            self.gps_handler = GpsController(gps_com_port, gps_baud)
             if self.manual_update_check.checkState():
                 self.flag = 1
                 self.update_gps_info()
@@ -153,32 +156,62 @@ class GPSTabview(QWidget):
                 self.flag = 3
                 self.update_gps_info()
 
-    def load_map(self, Lat, Lon):
+    def load_map(self, lat, long):
+        lat = str(float(lat[:-2]) + 0.011731)
+        long = str(float(long[:-2]) + 0.004051)
+        # Lat =str(float(Lat[:-2]))
+        # Lon =str(float(Lon[:-2]))
         if self.map_flag == 0:
-            self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
-            self.map_flag += 1
-            self.Last_Lat = Lat
-            self.Last_Lon = Lon
+            self.map_viewer.page().runJavaScript('''add_point(''' + lat + ''',''' + long + ''');''')
+            self.map_flag +=1
+            self.last_lat = lat
+            self.last_long = long
             self.gps_sys_info.appendPlainText('Logged a new Point')
         else:
-            if self.Last_Lat != Lat or self.Last_Lon != Lon:
+            if self.last_lat != lat or self.last_long != long:
                 if self.line_color_flag == 0:
-                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.Last_Lat + ''',''' + \
-                                                         self.Last_Lon + ''',''' + Lat + ''',''' + Lon + '''',red);''')
+                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + self.last_long + ''',''' + lat + ''',''' + long + ''',"red");''')
                     self.line_color_flag = 1
                 else:
-                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.Last_Lat + ''',''' + \
-                                                         self.Last_Lon + ''',''' + Lat + ''',''' + Lon + '''',blue);''')
+                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + self.last_long + ''',''' + lat + ''',''' + long + '''',"blue");''')
                     self.line_color_flag = 0
-                self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
+                #self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
                 self.map_flag += 1
-                self.Last_Lat = Lat
-                self.Last_Lon = Lon
+                self.last_lat = lat
+                self.last_long = long
                 self.gps_sys_info.appendPlainText('Logged a new point and Plot a path')
             else:
                 self.map_flag += 1
-                self.Last_Lat = Lat
-                self.Last_Lon = Lon
+                self.last_lat = lat
+                self.last_long = long
+                self.gps_sys_info.appendPlainText('Loacation has not changed')
+
+    def load_map_new(self, Lat, Lon):
+        if self.map_flag == 0:
+            self.map_viewer.page().runJavaScript('''add_point({0}, {1});'''.format(Lat, Lon))
+            self.map_flag += 1
+            self.last_lat = Lat
+            self.last_long = Lon
+            self.gps_sys_info.appendPlainText('Logged a new Point')
+        else:
+            if self.last_lat != Lat or self.last_long != Lon:
+                if self.line_color_flag == 0:
+                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + \
+                                                         self.last_long + ''',''' + Lat + ''',''' + Lon + '''',red);''')
+                    self.line_color_flag = 1
+                else:
+                    self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + \
+                                                         self.last_long + ''',''' + Lat + ''',''' + Lon + '''',blue);''')
+                    self.line_color_flag = 0
+                self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
+                self.map_flag += 1
+                self.last_lat = Lat
+                self.last_long = Lon
+                self.gps_sys_info.appendPlainText('Logged a new point and Plot a path')
+            else:
+                self.map_flag += 1
+                self.last_lat = Lat
+                self.last_long = Lon
                 self.gps_sys_info.appendPlainText('Location has not changed')
 
     def update_gps_info(self):
@@ -208,7 +241,8 @@ class GPSTabview(QWidget):
         # print(self.gps_info_dict_buf)
         if self.flag >= 3:
             self.gps_live_data = self.gps_handler.gps_info_dict.copy()
-            print(self.gps_live_data)
+            # print(self.gps_live_data)
+
             # self.gps_live_data = self.gps_handler.gps_info_dict.copy()
             # self.Lat_raw_data.setText(self.gps_live_data['Latitude'])
             # self.Lat_decimal.setText(self.gps_live_data['Latitude Deg'])
@@ -220,44 +254,46 @@ class GPSTabview(QWidget):
             # self.Lon_raw_data.setText(self.Lon)
             # print(self.gps_live_data['Latitude'])
             if self.gps_live_data['Latitude Deg'] != 'N/A' and self.gps_live_data['Longitude Deg'] != 'N/A':
-                self.Lat_raw_data.setText(self.gps_live_data['Latitude'])
-                self.Lat_decimal.setText(self.gps_live_data['Latitude Deg'])
-                self.Lat_dms.setText(self.gps_live_data['Latitude'])
-                self.Lon_raw_data.setText(self.gps_live_data['Longitude'])
-                self.Lon_decimal.setText(self.gps_live_data['Longitude Deg'])
-                self.Lon_dms.setText(self.gps_live_data['Longitude'])
-                Lon = self.gps_live_data['Latitude Deg']
-                Lat = self.gps_live_data['Longitude Deg']
-                self.load_map(Lat, Lon)  # 更新地图
+                print('New point\tLat: {0}, Long: {1}'.format(self.gps_live_data['Latitude Deg'],
+                                                              self.gps_live_data['Longitude Deg']))
+                self.lat_raw_data.setText(self.gps_live_data['Latitude'])
+                self.lat_decimal.setText(self.gps_live_data['Latitude Deg'])
+                self.lat_dms.setText(self.gps_live_data['Latitude'])
+                self.lon_raw_data.setText(self.gps_live_data['Longitude'])
+                self.lon_decimal.setText(self.gps_live_data['Longitude Deg'])
+                self.lon_dms.setText(self.gps_live_data['Longitude'])
+                long = self.gps_live_data['Latitude Deg']
+                lat = self.gps_live_data['Longitude Deg']
+                self.load_map(lat, long)
             else:
-                self.Lat_raw_data.setText(self.gps_live_data['Latitude'])
-                self.Lat_decimal.setText(self.gps_live_data['Latitude Deg'])
-                self.Lat_dms.setText(self.gps_live_data['Latitude'])
-                self.Lon_raw_data.setText(self.gps_live_data['Longitude'])
-                self.Lon_decimal.setText(self.gps_live_data['Longitude Deg'])
-                self.Lon_dms.setText(self.gps_live_data['Longitude'])
-                self.load_map(self.Lat, self.Lon)
+                self.lat_raw_data.setText(self.gps_live_data['Latitude'])
+                self.lat_decimal.setText(self.gps_live_data['Latitude Deg'])
+                self.lat_dms.setText(self.gps_live_data['Latitude'])
+                self.lon_raw_data.setText(self.gps_live_data['Longitude'])
+                self.lon_decimal.setText(self.gps_live_data['Longitude Deg'])
+                self.lon_dms.setText(self.gps_live_data['Longitude'])
+                self.load_map(self.lat, self.long)
             self.flag += 1
         if self.flag == 1:
             self.gps_live_data = self.gps_handler.gps_info_dict.copy()
             print(self.gps_live_data)
             if self.gps_live_data['Latitude Deg'] != 'N/A' and self.gps_live_data['Longitude Deg'] != 'N/A':
-                self.Lat_raw_data.setText(self.gps_live_data['Latitude'])
-                self.Lat_decimal.setText(self.gps_live_data['Latitude Deg'])
-                self.Lat_dms.setText(self.gps_live_data['Latitude'])
-                self.Lon_raw_data.setText(self.gps_live_data['Longitude'])
-                self.Lon_decimal.setText(self.gps_live_data['Longitude Deg'])
-                self.Lon_dms.setText(self.gps_live_data['Longitude'])
-                Lon = self.gps_live_data['Latitude Deg']
-                Lat = self.gps_live_data['Longitude Deg']
-                self.load_map(Lat, Lon)
+                self.lat_raw_data.setText(self.gps_live_data['Latitude'])
+                self.lat_decimal.setText(self.gps_live_data['Latitude Deg'])
+                self.lat_dms.setText(self.gps_live_data['Latitude'])
+                self.lon_raw_data.setText(self.gps_live_data['Longitude'])
+                self.lon_decimal.setText(self.gps_live_data['Longitude Deg'])
+                self.lon_dms.setText(self.gps_live_data['Longitude'])
+                long = self.gps_live_data['Latitude Deg']
+                lat = self.gps_live_data['Longitude Deg']
+                self.load_map(lat, long)
 
             else:
-                self.Lat_raw_data.setText(self.gps_live_data['Latitude'])
-                self.Lat_decimal.setText(self.gps_live_data['Latitude Deg'])
-                self.Lat_dms.setText(self.gps_live_data['Latitude'])
-                self.Lon_raw_data.setText(self.gps_live_data['Longitude'])
-                self.Lon_decimal.setText(self.gps_live_data['Longitude Deg'])
-                self.Lon_dms.setText(self.gps_live_data['Longitude'])
-                self.load_map(self.Lat, self.Lon)
+                self.lat_raw_data.setText(self.gps_live_data['Latitude'])
+                self.lat_decimal.setText(self.gps_live_data['Latitude Deg'])
+                self.lat_dms.setText(self.gps_live_data['Latitude'])
+                self.lon_raw_data.setText(self.gps_live_data['Longitude'])
+                self.lon_decimal.setText(self.gps_live_data['Longitude Deg'])
+                self.lon_dms.setText(self.gps_live_data['Longitude'])
+                self.load_map(self.lat, self.long)
             self.flag += 1

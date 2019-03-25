@@ -124,7 +124,7 @@ class CurrentLivePlotter(QWidget):
             self.timer = pg.QtCore.QTimer()
             self.timer.timeout.connect(lambda: self.update_data())
             ### start a new thread for power_monitor to sample
-            self.t_monitor = multiprocessing.Process(target=Power_Monitor)
+            self.t_monitor = multiprocessing.Process(target=PowerMonitorHandler)
             self.t_monitor.start()
             ###live animation process wait 3 seconds to plot the curve
             time.sleep(2)

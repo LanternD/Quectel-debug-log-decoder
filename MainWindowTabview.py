@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton
 from LogDecoderTabview import LogDecoderTabview
 from CurrentPlottingModule.CurrentLivePlotter import CurrentLivePlotter
-from GpsTabview import GPSTabview
+from GpsTabview import GpsTabview
 
 
 class MainWindowTabview(QWidget):
@@ -36,7 +36,7 @@ class MainWindowTabview(QWidget):
         tab2.setLayout(tab2.layout)
 
         # Create gps_map tab
-        gps_map = GPSTabview()
+        gps_map = GpsTabview()
         tab3.layout = QVBoxLayout()
         tab3.layout.addWidget(gps_map)
         tab3.setLayout(tab3.layout)

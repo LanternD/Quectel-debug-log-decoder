@@ -9,7 +9,7 @@ from PyQt5.QtCore import *
 from SupportingWindows import AboutMessageBox
 import getpass
 
-VERSION = '0.4 Beta'
+VERSION = '0.4 Alpha'
 LAST_UPDATE = '2019.03.23'
 
 
@@ -18,7 +18,7 @@ class QuectelDebugLogAnalyzer(QMainWindow):
     def __init__(self):
         super(QuectelDebugLogAnalyzer, self).__init__()
         self.version = VERSION
-        self.title = 'Quectel UE Debug Log Assistant ' + self.version
+        self.title = 'Quectel UE Debug Log Analyzer ' + self.version
         self.left = 50
         self.top = 50
         self.width = 1480

@@ -76,7 +76,7 @@ class UeAtController(object):
 
     def output_print(self, byte_like):
         # Output formatting
-        print(byte_like)
+        # print(byte_like)
         try:
             # new_msg = byte_like.decode('ascii')
             new_msg = byte_like.decode('utf-8')

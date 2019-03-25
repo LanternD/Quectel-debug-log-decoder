@@ -4,8 +4,8 @@ from PyQt5.QtCore import *
 import json
 import os.path
 
-VERSION = '0.2 Beta'
-LAST_UPDATE = '2018.09.15'
+VERSION = '0.4 Alpha'
+LAST_UPDATE = '2019.03.25'
 
 
 class AboutMessageBox(QDialog):
@@ -38,6 +38,147 @@ class AboutMessageBox(QDialog):
 
         update_date_label = QLabel('Last update: \t' + LAST_UPDATE, self)
         update_date_label.move(70, 170)
+
+
+class ConfigurationEditor(QDialog):
+
+    def __init__(self):
+        super(ConfigurationEditor, self).__init__()
+        self.dlg_config = {}  # configs set in the Qdialog (subset of all the configs)
+
+
+        self.initUI()
+
+
+    def initUI(self):
+        self.setWindowTitle('Configuration Editor')
+        self.setFixedSize(500, 600)  # (W, H)
+        # cfg_editor_layout = QVBoxLayout()
+
+        self.exp_disp_gbox = QGroupBox('Export and Display Configurations')
+        self.exp_disp_gbox.setMaximumWidth(400)
+        self.exp_disp_gbox.setMinimumWidth(350)
+        self.exp_disp_gbox.setStyleSheet(self.groupbox_stylesheet)
+
+        hline = QFrame()
+        hline.setFrameShape(QFrame.HLine)
+        hline.setFrameShadow(QFrame.Sunken)
+
+        config_v_layout = QVBoxLayout()
+
+        # Export configuration
+        export_lb = QLabel('Export')
+        export_lb.setFont(self.lb_font)
+
+        log_type_lb = QLabel('Choose export content')
+
+        export_h_layout = QHBoxLayout()
+
+        self.export_raw_cb = QCheckBox('Raw log')
+        self.export_raw_cb.setChecked(True)
+
+        self.export_decoded_cb = QCheckBox('Decoded log')
+        self.export_decoded_cb.setChecked(True)
+
+        self.keep_filtered_log_cb = QCheckBox('Keep filtered logs')
+
+        export_h_layout.addWidget(self.export_raw_cb)
+        export_h_layout.addWidget(self.export_decoded_cb)
+        export_h_layout.addWidget(self.keep_filtered_log_cb)
+        export_h_layout.addStretch()
+
+        time_format_h_layout = QHBoxLayout()
+        time_format_lb = QLabel('File name time format')
+        self.time_format_input = QLineEdit('%y%m%d_%H%M%S')
+        self.time_format_input.setMaximumWidth(200)
+        time_format_h_layout.addWidget(time_format_lb)
+        time_format_h_layout.addWidget(self.time_format_input)
+        time_format_h_layout.addStretch(1)
+
+        export_format_h_layout = QHBoxLayout()
+        export_format_bg = QButtonGroup(export_format_h_layout)
+        export_format_lb = QLabel('File format')
+        self.export_format_rb_txt = QRadioButton('txt')
+
+        self.export_format_rb_csv = QRadioButton('csv')
+        self.export_format_rb_csv.setChecked(True)
+
+        export_format_bg.addButton(self.export_format_rb_txt)
+        export_format_bg.addButton(self.export_format_rb_csv)
+        export_format_h_layout.addWidget(export_format_lb)
+        # export_format_h_layout.addWidget(export_format_bg)
+        export_format_h_layout.addWidget(self.export_format_rb_txt)
+        export_format_h_layout.addWidget(self.export_format_rb_csv)
+        export_format_h_layout.addStretch()
+
+        disp_v_layout = QVBoxLayout()
+        disp_time_format_bg = QButtonGroup(disp_v_layout)
+        display_config_lb = QLabel('Display')
+        display_config_lb.setFont(self.lb_font)
+
+        self.disp_simplified_log_cb = QCheckBox('Simplify debug log display')
+        self.disp_simplified_log_cb.setChecked(True)
+        self.disp_simplified_log_cb.stateChanged.connect(self.cbx_fn_simplify_option)
+
+        # disp_time_format_lb = QLabel('Display time format')
+        self.disp_time_format_rb_strf = QRadioButton('Local Time (e.g. 18-08-18 10:11:55.12353)')
+        self.disp_time_format_rb_raw = QRadioButton('Raw time (e.g. 1534575622.4211376)')
+        self.disp_time_format_rb_zero = QRadioButton('0-offset (e.g. 0.4211376)')
+        self.disp_time_format_rb_zero.setChecked(True)
+
+        disp_time_format_bg.addButton(self.disp_time_format_rb_strf)
+        disp_time_format_bg.addButton(self.disp_time_format_rb_raw)
+        disp_time_format_bg.addButton(self.disp_time_format_rb_zero)
+
+        disp_v_layout.addWidget(display_config_lb)
+
+        # disp_v_layout.addWidget(QLabel('Log verbosity'))
+        disp_v_layout.addWidget(self.disp_simplified_log_cb)
+        disp_v_layout.addWidget(QLabel('Time formatting'))
+        disp_v_layout.addWidget(self.disp_time_format_rb_strf)
+        disp_v_layout.addWidget(self.disp_time_format_rb_raw)
+        disp_v_layout.addWidget(self.disp_time_format_rb_zero)
+
+        # accept and cancel button
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+
+        self.accepted.connect(self.config_ok_clicked)
+
+        config_v_layout.addWidget(export_lb)
+        config_v_layout.addWidget(log_type_lb)
+        config_v_layout.addLayout(export_h_layout)
+        config_v_layout.addLayout(time_format_h_layout)
+        config_v_layout.addLayout(export_format_h_layout)
+        config_v_layout.addWidget(hline)
+        config_v_layout.addLayout(disp_v_layout)
+
+        self.exp_disp_gbox.setLayout(config_v_layout)
+
+    @pyqtSlot()
+    def config_ok_btn_clicked(self):
+        self.key_log_selection_result = {}
+
+        # Export config
+        self.dlg_config['Export raw'] = self.export_raw_cb.isChecked()
+        self.dlg_config['Export decoded'] = self.export_decoded_cb.isChecked()
+        self.dlg_config['Keep filtered logs'] = self.keep_filtered_log_cb.isChecked()
+        self.dlg_config['Export filename time prefix'] = self.time_format_input.text()
+        if self.export_format_rb_txt.isChecked():
+            self.dlg_config['Export format'] = 'txt'
+        else:
+            self.dlg_config['Export format'] = 'csv'
+
+        # Dispaly config
+        self.dlg_config['Simplify log'] = self.disp_simplified_log_cb.isChecked()
+        if self.disp_time_format_rb_strf.isChecked():
+            self.dlg_config['Display time format'] = 'local'
+        elif self.disp_time_format_rb_raw.isChecked():
+            self.dlg_config['Display time format'] = 'raw'
+        elif self.disp_time_format_rb_zero.isChecked():
+            self.dlg_config['Display time format'] = 'zero'
+
 
 
 class KeyLogConfigurator(QDialog):

@@ -1,8 +1,11 @@
+# -*- coding: UTF-8 -*-
 '''
 Naming convention:
     Groupbox: xx_gbox
     PushButton: xx_btn
     PlanTextEdit: xx_monitor
+    Label: xx_lb
+    Dialog: XX_dlg
 '''
 
 import csv
@@ -28,7 +31,11 @@ class LogDecoderTabview(QWidget):
         super(LogDecoderTabview, self).__init__(parent)
 
         self.config = {}
+        # Initialization to prevent AttributeErrors and KeyErrors
         self.config['UDP local socket'] = 'X'
+        self.config['Filter dict'] = {'FO': [], 'FI': []}
+        self.decoder = None
+        self.ue_handler = None
 
         # Minor elements
         self.lb_font = QFont("Helvetica", 9)
@@ -141,6 +148,10 @@ class LogDecoderTabview(QWidget):
         dev_name_lb.setFont(self.lb_font)
         self.dev_name_input = QLineEdit('BC95')
         self.dev_name_input.setMaximumWidth(50)
+        self.choose_decoder_xml_btn = QPushButton('Select...')
+        self.choose_decoder_xml_btn.setMinimumWidth(70)
+        self.choose_decoder_xml_btn.setMinimumHeight(30)
+        self.choose_decoder_xml_btn.clicked.connect(self.btn_fn_select_decoder_xml)
 
         # AT command port
         at_label = QLabel('AT')
@@ -170,6 +181,8 @@ class LogDecoderTabview(QWidget):
         # Layout loading
         config_h_layout.addWidget(dev_name_lb)
         config_h_layout.addWidget(self.dev_name_input)
+        # TODO: 20190325 Update the XML choosing to FileDialog mode.
+        # config_h_layout.addWidget(self.choose_decoder_xml_btn)
         config_h_layout.addWidget(vline)
         config_h_layout.addWidget(at_label)
         config_h_layout.addWidget(at_port_label)
@@ -273,6 +286,7 @@ class LogDecoderTabview(QWidget):
 
     def create_export_display_config_module(self):
         self.exp_disp_gbox = QGroupBox('Export and Display Configurations')
+
         self.exp_disp_gbox.setMaximumWidth(400)
         self.exp_disp_gbox.setMinimumWidth(350)
         self.exp_disp_gbox.setStyleSheet(self.groupbox_stylesheet)
@@ -578,7 +592,7 @@ class LogDecoderTabview(QWidget):
         key_log_lb = QLabel('Key Log Display')
         key_log_lb.setFont(self.lb_font)
 
-        self.key_log_options_dialog = KeyLogConfigurator()  # Create here for reference in the get_all_config() function.
+        self.key_log_options_dlg = KeyLogConfigurator()  # Create here for reference in the get_all_config() function.
 
         self.select_key_log_btn = QPushButton('Select Key Log to Display')
         self.select_key_log_btn.clicked.connect(self.btn_fn_select_key_log)
@@ -609,6 +623,18 @@ class LogDecoderTabview(QWidget):
         input_command = self.at_command_input_list[idx].text().upper()
         print('[INFO] Send AT Command:', 'AT+' + input_command)
         self.qt_process_at_command(input_command)
+
+    @pyqtSlot(name='SELECT_DECODER_XML')
+    def btn_fn_select_decoder_xml(self):
+        options = QFileDialog.Options()
+        # options |= QFileDialog.DontUseNativeDialog
+        file_name, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "",
+                                                  "Message Definition (*.xml)", options=options)
+        if file_name:
+            print('Message definition chosen: {0}'.format(file_name))
+        else:
+            print('[ERROR] Unknown message definition.')
+
 
     # # Session start/stop control
     @pyqtSlot(name='START_SESSION')
@@ -642,13 +668,14 @@ class LogDecoderTabview(QWidget):
         self.decoder.dbg_run_flag = False
         self.decoder.dbg_uart_handler.close()
         while self.decoder.isRunning():
-            # TODO: fix the that the program fails to stop running
             print('[INFO] Debug log is Still running.')
             time.sleep(0.5)
             self.decoder.terminate()
             continue
         del self.ue_handler
         del self.decoder
+        self.ue_handler = None
+        self.decoder = None
 
         self.append_sys_log('Debug port stopped.')
 
@@ -769,7 +796,7 @@ class LogDecoderTabview(QWidget):
 
     @pyqtSlot(name='SELECT_KEY_LOG')
     def btn_fn_select_key_log(self):
-        self.key_log_options_dialog.exec_()
+        self.key_log_options_dlg.exec_()
 
     # # UDP socket buttons
     @pyqtSlot(name='BTN_RSP_PING_SERVER')
@@ -1028,9 +1055,9 @@ class LogDecoderTabview(QWidget):
 
         # Special config that is not in the UI:
         self.config['Enable live measurement'] = True
-        self.config['Key log list'] = self.key_log_options_dialog.key_log_selection_result
+        self.config['Key log list'] = self.key_log_options_dlg.key_log_selection_result
 
-        print('Your configurations:', self.config)
+        print('[INFO] Your configurations:', self.config)
         return True
 
     def save_config_to_json(self):
@@ -1039,7 +1066,7 @@ class LogDecoderTabview(QWidget):
             j_file.write(result_json)
             j_file.flush()
             j_file.close()
-            print('All the configurations are saved to config.json.')
+            print('[INFO] All the configurations are saved to config.json.')
 
     def load_config_from_json(self):
         # Load the data
@@ -1050,13 +1077,14 @@ class LogDecoderTabview(QWidget):
                 try:
                     json_data = json.loads(read_data)
                 except json.decoder.JSONDecodeError:
-                    print('Json file corrupted. No previous configs. Load default settings.')
+                    print('[ERROR] Json file corrupted. No previous configs. Load default settings.')
                     j_file.close()
                     return 0
                 # print(json_data)
                 last_config = json_data
                 j_file.close()
         else:
+            # TODO: add the configurator window here.
             print('config.json does not exist.')
             return 0
 
@@ -1175,7 +1203,7 @@ class LogDecoderTabview(QWidget):
 
                 # process the key logs
                 if self.decoder.res != None:
-                    self.get_key_log(self.decoder.res)
+                    self.get_key_log(self.decoder.res.copy())
 
         new_sys_info = self.decoder.sys_info_buf.copy()
         self.decoder.sys_info_buf = []
@@ -1222,25 +1250,25 @@ class LogDecoderTabview(QWidget):
 
     def get_key_log(self, log_msg):
         # if self.FILL_SIB_CH.isChecked():
-        if (log_msg.find('FILL_SRB1')) != -1 and self.key_log_options_dialog.CB__RLC_UL_FILL_SRB1_TX_DATA.isChecked():
+        if (log_msg.find('FILL_SRB1')) != -1 and self.key_log_options_dlg.CB__RLC_UL_FILL_SRB1_TX_DATA.isChecked():
             temp = re.split('[\t]', log_msg)
-            struct = ''
+            formatted_key_logs = ''
             for item in temp:
                 if item.find('FILL_SRB1') != -1:
                     item_temp = item.split('(')
-                    struct = struct + item_temp[0] + ':\n'
+                    formatted_key_logs = formatted_key_logs + item_temp[0] + ':\n'
                 elif item.find('allocated') != -1:
                     t_fill = re.split('[\n]', item)
                     for item_fill in t_fill:
                         if item_fill.find('allocated') != -1:
-                            struct = struct + '\n---' + item_fill
+                            formatted_key_logs = formatted_key_logs + '\n---' + item_fill
                         if item_fill.find('filled') != -1:
-                            struct = struct + '\n---' + item_fill
-            self.key_log_monitor.appendPlainText(struct)
+                            formatted_key_logs = formatted_key_logs + '\n---' + item_fill
+            self.key_log_monitor.appendPlainText(formatted_key_logs)
             self.key_log_monitor.appendPlainText('--------')
         # if self.ACK_CH.isChecked():
         if (log_msg.find('LL1_HARQ_ACK_') or log_msg.find(
-                'NACK')) != -1 and self.key_log_options_dialog.CB_ACK.isChecked():
+                'NACK')) != -1 and self.key_log_options_dlg.CB_ACK.isChecked():
             temp = re.split('[\t]', log_msg)
             self.key_log_monitor.appendPlainText(temp[1])
             for item in temp:
@@ -1249,22 +1277,22 @@ class LogDecoderTabview(QWidget):
                     self.key_log_monitor.appendPlainText(item_temp[0])
                     self.key_log_monitor.appendPlainText('--------')
         # if self.FORMAT_N0_CH.isChecked():
-        if (log_msg.find('LL1_DCI')) != -1 and self.key_log_options_dialog.CB_LL1_DCI.isChecked():
+        if (log_msg.find('LL1_DCI')) != -1 and self.key_log_options_dlg.CB_LL1_DCI.isChecked():
             temp = re.split('[\t]', log_msg)
-            struct = ''
+            formatted_key_logs = ''
             self.key_log_monitor.appendPlainText(temp[1])
             for item in temp:
                 if item.find('LL1_DCI') != -1:
                     item_temp = item.split('(')
-                    struct = struct + item_temp[0] + ':\n'
+                    formatted_key_logs = formatted_key_logs + item_temp[0] + ':\n'
                 if item.find('repetition_number') != -1:
                     if item.find('dci_sf_repetition_number') != -1:
-                        struct = struct + '\n-- ' + item
+                        formatted_key_logs = formatted_key_logs + '\n-- ' + item
                     else:
-                        struct = struct + '\n-- ' + item
+                        formatted_key_logs = formatted_key_logs + '\n-- ' + item
                 if item.find('modulation_coding_scheme_tbs') != -1:
-                    struct = struct + '\n--- ' + item
+                    formatted_key_logs = formatted_key_logs + '\n--- ' + item
                 if item.find('new_data_ind') != -1:
-                    struct = struct + '\n--- ' + item
-            self.key_log_monitor.appendPlainText(struct)
+                    formatted_key_logs = formatted_key_logs + '\n--- ' + item
+            self.key_log_monitor.appendPlainText(formatted_key_logs)
             self.key_log_monitor.appendPlainText('--------')

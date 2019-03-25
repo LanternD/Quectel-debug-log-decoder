@@ -5,7 +5,9 @@ import Monsoon.Operations as op
 
 
 class PowerMonitorHandler():
+
     def __init__(self):
+
         Mon = HVPM.Monsoon()
         Mon.setup_usb()
         Mon.setVout(4.0)

@@ -508,8 +508,6 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
     def read_byte(self, num):
         # Read byte from debug UART and format it.
-        # TODO: try to find the reason for "read failed: device reports readiness to
-        #  read but returned no data (device disconnected or multiple access on port?)"
         try:
             msg = self.dbg_uart_handler.read(num).hex().upper()  # hex() converts byte to str.
         except serial.serialutil.SerialException:
@@ -614,7 +612,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     disp_list = self.parse_one_msg_common(
                         str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
                     # TODO: Bookmarked. extract info from log.
-                    # self.extract_info_from_log(disp_list)
+                    self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list
                     self.display_export_processing(parsed_log_list)
                     # print(parsed_log_dict)
@@ -698,7 +696,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 is_filtered_flag = True
                 self.filter_out_count += 1
             else:
-                self.filter_in_count += 1  # The log that is not
+                self.filter_in_count += 1  # The log that is kept.
         elif self.filter_flag == 2:  # Filter in
             if log_name in self.filter_dict['FI']:  # Message in the set
                 self.filter_in_count += 1
@@ -707,16 +705,16 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 self.filter_out_count += 1
 
         if self.filter_out_count % 1000 == 0 and self.filter_out_count > 0:
-            filter_out_msg = '[INFO] Excluded log count: {0}'.format(self.filter_out_count)
-            print(filter_out_msg)
+            filter_out_count_msg = '[INFO] Excluded log count: {0}'.format(self.filter_out_count)
+            print(filter_out_count_msg)
             if self.config['Run in Qt']:
-                self.sys_info_buf.append(filter_out_msg)
+                self.sys_info_buf.append(filter_out_count_msg)
                 self.dbg_uart_trigger.emit()  # Tell the main thread to update the system info monitor.
         if self.filter_in_count % 500 == 0 and self.filter_in_count > 0:
-            filter_in_msg = '[INFO] Included log count: {0}'.format(self.filter_in_count)
-            print(filter_in_msg)
+            filter_in_count_msg = '[INFO] Included log count: {0}'.format(self.filter_in_count)
+            print(filter_in_count_msg)
             if self.config['Run in Qt']:
-                self.sys_info_buf.append(filter_in_msg)
+                self.sys_info_buf.append(filter_in_count_msg)
                 self.dbg_uart_trigger.emit()
         return is_filtered_flag
 

@@ -1,7 +1,5 @@
-'''
-import array
 
-from PyQt5 import QtGui
+'''
 
 import Monsoon.HVPM as HVPM
 import Monsoon.sampleEngine as sampleEngine
