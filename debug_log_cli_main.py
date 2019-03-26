@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from LogDecoders import *
 
 # global setting

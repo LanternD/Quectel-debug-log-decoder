@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton
 from LogDecoderTabview import LogDecoderTabview
 from CurrentPlottingModule.CurrentLivePlotter import CurrentLivePlotter
@@ -7,39 +8,65 @@ from GpsTabview import GpsTabview
 class MainWindowTabview(QWidget):
     def __init__(self, parent=None):
         super(MainWindowTabview, self).__init__(parent)
-        main_layout = QVBoxLayout(self)
+
+        main_layout = QVBoxLayout()
+
+        enable_power_monitor_module = True
+        enable_gps_module = True
+
+        # Load the data
+        import os, json
+        json_path = './config.json'
+        if os.path.exists(json_path):
+            with open(json_path, 'r') as j_file:
+                read_data = j_file.read()
+                try:
+                    json_data = json.loads(read_data)
+                except json.decoder.JSONDecodeError:
+                    print('[ERROR] Json file corrupted. No previous configs. Load default settings.')
+                    j_file.close()
+                    json_data = {}
+                last_config = json_data
+                j_file.close()
+            try:
+                enable_power_monitor_module = last_config['Enable power monitor module']
+            except KeyError:
+                pass
+            try:
+                enable_gps_module = last_config['Enable GPS module']
+            except KeyError:
+                pass
 
         # Initialize tab screen
         tabs = QTabWidget()
-        tab1 = QWidget()
-        tab2 = QWidget()
-        tab3 = QWidget()
         tabs.resize(300, 200)
 
-        # Add tabs
-        tabs.addTab(tab1, 'Debug Log Decoder')
-        tabs.addTab(tab2, 'Power Monitor')
-        tabs.addTab(tab3, 'GPS')
 
+        tab1 = QWidget()
         # Create debug_log tab
-        main_view = LogDecoderTabview()
+        log_decoder_tab_view = LogDecoderTabview()
         tab1.layout = QVBoxLayout()
-        tab1.layout.addWidget(main_view)
+        tab1.layout.addWidget(log_decoder_tab_view)
         tab1.setLayout(tab1.layout)
+        tabs.addTab(tab1, '&1 Debug Log Decoder')
 
-        # TODO: Add enable flags to the power monitor and GPS module.
+        if enable_power_monitor_module:
+            # Create power_monitor tab
+            tab2 = QWidget()
+            power_monitor_view = CurrentLivePlotter()
+            tab2.layout = QVBoxLayout()
+            tab2.layout.addWidget(power_monitor_view)
+            tab2.setLayout(tab2.layout)
+            tabs.addTab(tab2, '&2 Power Monitor')
 
-        # Create power_monitor tab
-        power_monitor_view = CurrentLivePlotter()
-        tab2.layout = QVBoxLayout()
-        tab2.layout.addWidget(power_monitor_view)
-        tab2.setLayout(tab2.layout)
-
-        # Create gps_map tab
-        gps_map = GpsTabview()
-        tab3.layout = QVBoxLayout()
-        tab3.layout.addWidget(gps_map)
-        tab3.setLayout(tab3.layout)
+        if enable_gps_module:
+            # Create gps_map tab
+            tab3 = QWidget()
+            gps_map = GpsTabview()
+            tab3.layout = QVBoxLayout()
+            tab3.layout.addWidget(gps_map)
+            tab3.setLayout(tab3.layout)
+            tabs.addTab(tab3, '&3 GPS')
 
         # Add tabs to widget
         main_layout.addWidget(tabs)

@@ -15,6 +15,7 @@ import multiprocessing
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
+import pyqtgraph as pg
 import time
 import re
 
@@ -30,41 +31,48 @@ class LogDecoderTabview(QWidget):
     def __init__(self, parent=None):
         super(LogDecoderTabview, self).__init__(parent)
 
-        self.config = {}
+        self.config = {}  # the global config that control the workflow
         # Initialization to prevent AttributeErrors and KeyErrors
         self.config['UDP local socket'] = 'X'
         self.config['Filter dict'] = {'FO': [], 'FI': []}
         self.decoder = None
         self.ue_handler = None
 
+        self.enable_live_measurement_flag = False
+
+        # style sheet control
+        g_q_style = YouAreSoQ()
+
         # Minor elements
-        self.lb_font = QFont("Helvetica", 9)
-        self.lb_font.setBold(True)
-        self.btn_font = QFont("Helvetica", 14)
-        self.btn_font.setBold(True)
-        self.groupbox_stylesheet = 'QGroupBox {font-size: 16px;' \
-                                   'font-weight: bold;} ' \
-                                   'Widget {font-weight: normal;}'
+        self.lb_font = g_q_style.lb_font
+        self.btn_font = g_q_style.large_btn_font
+        self.groupbox_stylesheet = g_q_style.groupbox_stylesheet
+        self.pb_stylesheet = g_q_style.large_btn_stylesheet
 
         main_layout = QHBoxLayout(self)
         left_section_layout = QVBoxLayout()
         left_section_layout.setStretch(2, 3)
-        mid_section_layout = QVBoxLayout()
-        mid_section_layout.setStretch(1, 1)
         right_section_layout = QVBoxLayout()
         right_section_layout.setStretch(1, 1)
+        middle_section_layout = QVBoxLayout()
+        middle_section_layout.setStretch(1, 1)
 
         # Find available serial devices.
         available_serials = list_serial_ports()
         print('[INFO] Available serial ports:', available_serials)
 
+        # Initialize the config editor
+        self.config_editor_dlg = ConfigurationEditor()
+        self.config_editor_dlg.config_updated_trigger.connect(self.sync_config_from_cfg_editor)
+
         # Create main window layout
         self.create_serial_config_module(available_serials)  # self.serial_config_gbox is ready
         self.create_filter_config_module()  # self.filter_config_gbox is ready
-        self.create_export_display_config_module()  # self.exp_disp_gbox is ready
+        self.create_config_editor_btn_module()  # self.exp_disp_gbox is ready
         self.create_display_module()  # self.display_gbox is ready
         self.create_controller_module()  # self.controller_gbox is ready
         self.create_live_measurement_module()  # self.live_measurement_display_gbox is ready
+        self.create_pyqtgraph_rsrp_snr_plotter()  # self.rsrp_snr_plot_gbox is ready
 
         self.add_tool_tips()  # Put tool tips to the components.
 
@@ -73,13 +81,15 @@ class LogDecoderTabview(QWidget):
         left_section_layout.addWidget(self.display_gbox)
         self.controller_gbox.setMaximumWidth(400)
 
-        mid_section_layout.addWidget(self.exp_disp_gbox)
-        mid_section_layout.addWidget(self.controller_gbox)
+        right_section_layout.addWidget(self.controller_gbox)
+        right_section_layout.addWidget(self.rsrp_snr_plot_gbox)
 
-        right_section_layout.addWidget(self.key_info_display_gbox)
+        middle_section_layout.addWidget(self.config_update_btn_gbox)
+        middle_section_layout.addWidget(self.large_button_gbox)
+        middle_section_layout.addWidget(self.key_info_display_gbox)
 
         main_layout.addLayout(left_section_layout)
-        main_layout.addLayout(mid_section_layout)
+        main_layout.addLayout(middle_section_layout)
         main_layout.addLayout(right_section_layout)
         self.setLayout(main_layout)
 
@@ -94,7 +104,8 @@ class LogDecoderTabview(QWidget):
                                    'UDP server IP', 'UDP server port', 'UDP local port',
                                    'AT command 1', 'AT command 2', 'AT command 3',
                                    'UL packet num', 'UL packet len', 'UL packet delay',
-                                   'Simplify log', 'Enable live measurement', 'Key log list')
+                                   'Simplify log', 'Enable live measurement', 'Key log list',
+                                   'Enable power monitor module', 'Enable GPS module')
         self.load_config_from_json()
 
         # Measurement results
@@ -111,7 +122,7 @@ class LogDecoderTabview(QWidget):
     def ue_serial_handler(self):
         com_str = self.config['AT port']
         ue_rate = int(self.config['AT baudrate'])
-        print('UE:', com_str, ue_rate)
+        print('[INFO] UE: {0} Baudrate: {1}'.format(com_str, ue_rate))
         self.ue_handler = UeAtController(com_str, ue_rate)
         # Close and open the UDP socket, just in case
         self.append_sys_log('Connected to AT UART.')
@@ -120,13 +131,14 @@ class LogDecoderTabview(QWidget):
             _, _ = self.ue_handler.close_udp_socket(1)  # hope there are no more than 2 sockets
             _, msg_list = self.ue_handler.create_udp_socket(self.config['UDP local port'])
             self.config['UDP local socket'] = msg_list[0]
-            print('Socket #:', self.config['UDP local socket'])
+            print('[INFO] Socket #:', self.config['UDP local socket'])
 
     def dbg_serial_handler(self):
         self.decoder = UartOnlineLogDecoder(self.config)
         self.decoder.xml_loader()
         self.decoder.start()
         self.decoder.dbg_uart_trigger.connect(self.dbg_fetch_log)
+        self.decoder.update_rsrp_snr_trigger.connect(self.dbg_fetch_rsrp_snr)
         self.append_sys_log('Debug decoder Streaming is started.')
 
     # Create UI zone
@@ -270,8 +282,8 @@ class LogDecoderTabview(QWidget):
 
         self.clear_main_monitor_btn.setFixedHeight(40)
         self.clear_secondary_monitor_btn.setFixedHeight(40)
-        self.clear_main_monitor_btn.clicked.connect(lambda: self.btm_fn_clear_monitor('Main'))
-        self.clear_secondary_monitor_btn.clicked.connect(lambda: self.btm_fn_clear_monitor('Secondary'))
+        self.clear_main_monitor_btn.clicked.connect(lambda: self.btn_fn_clear_monitor('Main'))
+        self.clear_secondary_monitor_btn.clicked.connect(lambda: self.btn_fn_clear_monitor('Secondary'))
 
         clear_log_btn_v_layout.addWidget(self.clear_main_monitor_btn)
         clear_log_btn_v_layout.addWidget(self.clear_secondary_monitor_btn)
@@ -284,101 +296,21 @@ class LogDecoderTabview(QWidget):
 
         self.display_gbox.setLayout(disp_v_layout)
 
-    def create_export_display_config_module(self):
-        self.exp_disp_gbox = QGroupBox('Export and Display Configurations')
+    def create_config_editor_btn_module(self):
+        self.config_update_btn_gbox = QGroupBox('Configurations')
+        self.config_update_btn_gbox.setStyleSheet(self.groupbox_stylesheet)
 
-        self.exp_disp_gbox.setMaximumWidth(400)
-        self.exp_disp_gbox.setMinimumWidth(350)
-        self.exp_disp_gbox.setStyleSheet(self.groupbox_stylesheet)
-
-        hline = QFrame()
-        hline.setFrameShape(QFrame.HLine)
-        hline.setFrameShadow(QFrame.Sunken)
+        open_config_editor_btn = QPushButton('Update Configuration')
+        open_config_editor_btn.setMinimumWidth(100)
+        open_config_editor_btn.setMinimumHeight(40)
+        open_config_editor_btn.setFont(self.btn_font)
+        open_config_editor_btn.setStyleSheet(self.pb_stylesheet)
+        open_config_editor_btn.clicked.connect(self.btn_fn_open_config_editor_dlg)
 
         config_v_layout = QVBoxLayout()
+        config_v_layout.addWidget(open_config_editor_btn)
 
-        # Export configuration
-        export_lb = QLabel('Export')
-        export_lb.setFont(self.lb_font)
-
-        log_type_lb = QLabel('Choose export content')
-
-        export_h_layout = QHBoxLayout()
-
-        self.export_raw_cb = QCheckBox('Raw log')
-        self.export_raw_cb.setChecked(True)
-
-        self.export_decoded_cb = QCheckBox('Decoded log')
-        self.export_decoded_cb.setChecked(True)
-
-        self.keep_filtered_log_cb = QCheckBox('Keep filtered logs')
-
-        export_h_layout.addWidget(self.export_raw_cb)
-        export_h_layout.addWidget(self.export_decoded_cb)
-        export_h_layout.addWidget(self.keep_filtered_log_cb)
-        export_h_layout.addStretch()
-
-        time_format_h_layout = QHBoxLayout()
-        time_format_lb = QLabel('File name time format')
-        self.time_format_input = QLineEdit('%y%m%d_%H%M%S')
-        self.time_format_input.setMaximumWidth(200)
-        time_format_h_layout.addWidget(time_format_lb)
-        time_format_h_layout.addWidget(self.time_format_input)
-        time_format_h_layout.addStretch(1)
-
-        export_format_h_layout = QHBoxLayout()
-        export_format_bg = QButtonGroup(export_format_h_layout)
-        export_format_lb = QLabel('File format')
-        self.export_format_rb_txt = QRadioButton('txt')
-
-        self.export_format_rb_csv = QRadioButton('csv')
-        self.export_format_rb_csv.setChecked(True)
-
-        export_format_bg.addButton(self.export_format_rb_txt)
-        export_format_bg.addButton(self.export_format_rb_csv)
-        export_format_h_layout.addWidget(export_format_lb)
-        # export_format_h_layout.addWidget(export_format_bg)
-        export_format_h_layout.addWidget(self.export_format_rb_txt)
-        export_format_h_layout.addWidget(self.export_format_rb_csv)
-        export_format_h_layout.addStretch()
-
-        disp_v_layout = QVBoxLayout()
-        disp_time_format_bg = QButtonGroup(disp_v_layout)
-        display_config_lb = QLabel('Display')
-        display_config_lb.setFont(self.lb_font)
-
-        self.disp_simplified_log_cb = QCheckBox('Simplify debug log display')
-        self.disp_simplified_log_cb.setChecked(True)
-        self.disp_simplified_log_cb.stateChanged.connect(self.cbx_fn_simplify_option)
-
-        # disp_time_format_lb = QLabel('Display time format')
-        self.disp_time_format_rb_strf = QRadioButton('Local Time (e.g. 18-08-18 10:11:55.12353)')
-        self.disp_time_format_rb_raw = QRadioButton('Raw time (e.g. 1534575622.4211376)')
-        self.disp_time_format_rb_zero = QRadioButton('0-offset (e.g. 0.4211376)')
-        self.disp_time_format_rb_zero.setChecked(True)
-
-        disp_time_format_bg.addButton(self.disp_time_format_rb_strf)
-        disp_time_format_bg.addButton(self.disp_time_format_rb_raw)
-        disp_time_format_bg.addButton(self.disp_time_format_rb_zero)
-
-        disp_v_layout.addWidget(display_config_lb)
-
-        # disp_v_layout.addWidget(QLabel('Log verbosity'))
-        disp_v_layout.addWidget(self.disp_simplified_log_cb)
-        disp_v_layout.addWidget(QLabel('Time formatting'))
-        disp_v_layout.addWidget(self.disp_time_format_rb_strf)
-        disp_v_layout.addWidget(self.disp_time_format_rb_raw)
-        disp_v_layout.addWidget(self.disp_time_format_rb_zero)
-
-        config_v_layout.addWidget(export_lb)
-        config_v_layout.addWidget(log_type_lb)
-        config_v_layout.addLayout(export_h_layout)
-        config_v_layout.addLayout(time_format_h_layout)
-        config_v_layout.addLayout(export_format_h_layout)
-        config_v_layout.addWidget(hline)
-        config_v_layout.addLayout(disp_v_layout)
-
-        self.exp_disp_gbox.setLayout(config_v_layout)
+        self.config_update_btn_gbox.setLayout(config_v_layout)
 
     def create_controller_module(self):
         self.controller_gbox = QGroupBox('Controller Panel')
@@ -390,33 +322,15 @@ class LogDecoderTabview(QWidget):
         hline.setFrameShape(QFrame.HLine)
         hline.setFrameShadow(QFrame.Sunken)
 
+        hline_2 = QFrame()
+        hline_2.setFrameShape(QFrame.HLine)
+        hline_2.setFrameShadow(QFrame.Sunken)
+
         controller_v_layout = QVBoxLayout()
-        # Button area
-        button_h_layout = QHBoxLayout()
-
-        self.start_btn = QPushButton('Start')
-        self.start_btn.setFont(self.btn_font)
-        self.start_btn.setMinimumWidth(80)
-        self.start_btn.setMinimumHeight(50)
-
-        self.stop_btn = QPushButton('Stop')
-        self.stop_btn.setFont(self.btn_font)
-
-        self.stop_btn.setMinimumWidth(80)
-        self.stop_btn.setMinimumHeight(50)
-
-        self.start_btn.clicked.connect(self.btn_fn_start)
-        self.stop_btn.clicked.connect(self.btn_fn_stop)
-
-        button_h_layout.addWidget(self.start_btn)
-        button_h_layout.addWidget(self.stop_btn)
-
         socket_v_layout = QVBoxLayout()
         socket_lb = QLabel('Socket Actions')
         socket_lb.setFont(self.lb_font)
         socket_input_h_layout = QHBoxLayout()
-        self.create_socket_cb = QCheckBox('Create socket at starting')
-        self.create_socket_cb.setChecked(True)
         socket_ip_lb = QLabel('Server IP')
         self.socket_ip_input = QLineEdit('123.206.131.251')
         socket_port_lb = QLabel('Port')
@@ -447,7 +361,6 @@ class LogDecoderTabview(QWidget):
         socket_btn_h_layout.addWidget(self.close_socket_btn)
 
         socket_v_layout.addWidget(socket_lb)
-        socket_v_layout.addWidget(self.create_socket_cb)
         socket_v_layout.addLayout(socket_input_h_layout)
         socket_v_layout.addLayout(socket_btn_h_layout)
 
@@ -559,36 +472,65 @@ class LogDecoderTabview(QWidget):
         at_command_v_layout.addLayout(input_row_3)
         at_command_v_layout.addLayout(alert_row)
 
-        controller_v_layout.addLayout(button_h_layout)
-        controller_v_layout.addWidget(hline)
+        # controller_v_layout.addLayout(button_h_layout)
         controller_v_layout.addLayout(socket_v_layout)
         controller_v_layout.addLayout(ul_script_v_layout)
-        controller_v_layout.addLayout(misc_btn_v_layout)
-        controller_v_layout.addStretch()
+        # controller_v_layout.addLayout(misc_btn_v_layout)
+        controller_v_layout.addWidget(hline)
         controller_v_layout.addLayout(at_command_v_layout)
+        controller_v_layout.addStretch()
 
         self.controller_gbox.setLayout(controller_v_layout)
 
     def create_live_measurement_module(self):
         # Live measurement result display + important log display
+
+        self.enable_live_measurement_flag = False
+
+        if self.enable_live_measurement_flag:
+            # Section 1 in key info module
+            live_meansurement_lb = QLabel('Live Measurement Results')
+            live_meansurement_lb.setFont(self.lb_font)
+            self.live_measurement_monitor = QPlainTextEdit()  # The text display region
+            self.live_measurement_monitor.setFixedHeight(150)
+            self.live_measurement_monitor.setPlaceholderText('Start logging to measure and display the data.')
+            # TODO: Find out the key log that contains the interesting measurement result, without reading from AT port
+
+            self.enable_live_measurement_flag = True  # Indicate whether it is running or paused.
+            self.pause_and_resume_lm_btn = QPushButton('Pause/Resume')
+            self.pause_and_resume_lm_btn.clicked.connect(self.btn_fn_pause_or_resume_live_measurement)
+
+        # New Section 1 - 20190325
+        # Button area
+        self.large_button_gbox = QGroupBox('Control Buttons')
+        self.large_button_gbox.setStyleSheet(self.groupbox_stylesheet)
+        button_h_layout = QHBoxLayout()
+
+        self.start_btn = QPushButton('Start')
+        self.start_btn.setFont(self.btn_font)
+        self.start_btn.setStyleSheet(self.pb_stylesheet)
+        self.start_btn.setMinimumWidth(80)
+        self.start_btn.setMinimumHeight(50)
+
+        self.stop_btn = QPushButton('Stop')
+        self.stop_btn.setFont(self.btn_font)
+        self.stop_btn.setStyleSheet(self.pb_stylesheet)
+        self.stop_btn.setMinimumWidth(80)
+        self.stop_btn.setMinimumHeight(50)
+
+        self.start_btn.clicked.connect(self.btn_fn_start)
+        self.stop_btn.clicked.connect(self.btn_fn_stop)
+
+        button_h_layout.addWidget(self.start_btn)
+        button_h_layout.addWidget(self.stop_btn)
+
+        self.large_button_gbox.setLayout(button_h_layout)
+
+        # Section 2 in key info module
         self.key_info_display_gbox = QGroupBox('Key Info Display')
         self.key_info_display_gbox.setStyleSheet(self.groupbox_stylesheet)
 
         key_info_v_layout = QVBoxLayout()
-
-        # Section 1 in key info module
-        live_meansurement_lb = QLabel('Live Measurement Results')
-        live_meansurement_lb.setFont(self.lb_font)
-        self.live_measurement_monitor = QPlainTextEdit()  # The text display region
-        self.live_measurement_monitor.setFixedHeight(150)
-        self.live_measurement_monitor.setPlaceholderText('Start logging to measure and display the data.')
-        # TODO: Find out the key log that contains the interesting measurement result, without reading from AT port
-
-        self.enable_live_measurement_flag = True  # Indicate whether it is running or paused.
-        self.pause_and_resume_lm_btn = QPushButton('Pause')
-        self.pause_and_resume_lm_btn.clicked.connect(self.btn_fn_pause_or_resume_live_measurement)
-
-        # Section 2 in key info module
         key_log_lb = QLabel('Key Log Display')
         key_log_lb.setFont(self.lb_font)
 
@@ -603,11 +545,12 @@ class LogDecoderTabview(QWidget):
         self.clear_key_log_btn = QPushButton('Clear Key Logs')
 
         # Append everything to the layout
-        key_info_v_layout.addWidget(live_meansurement_lb)
-        key_info_v_layout.addWidget(self.live_measurement_monitor)
-        key_info_v_layout.addWidget(self.pause_and_resume_lm_btn)
+        if self.enable_live_measurement_flag:
+            key_info_v_layout.addWidget(live_meansurement_lb)
+            key_info_v_layout.addWidget(self.live_measurement_monitor)
+            key_info_v_layout.addWidget(self.pause_and_resume_lm_btn)
 
-        key_info_v_layout.addWidget(key_log_lb)
+        # key_info_v_layout.addWidget(key_log_lb)  # this is a duplicate label
         key_info_v_layout.addWidget(self.select_key_log_btn)
         key_info_v_layout.addWidget(self.key_log_monitor)
         key_info_v_layout.addWidget(self.clear_key_log_btn)
@@ -616,7 +559,42 @@ class LogDecoderTabview(QWidget):
         self.key_info_display_gbox.setLayout(key_info_v_layout)
         self.key_info_display_gbox.setMaximumWidth(400)
 
+    def create_pyqtgraph_rsrp_snr_plotter(self):
+
+        self.rsrp_snr_plot_gbox = QGroupBox('RSRP SNR Plot')
+        self.rsrp_snr_plot_gbox.setStyleSheet(self.groupbox_stylesheet)
+
+        ### the data
+        self.rsrp_data = []
+        self.snr_data = []
+        self.samptime = []
+
+        ### Gui for rsrp snr plot
+        rsrp_snr_layout = QVBoxLayout()
+        self.rsrp_win = pg.PlotWidget()
+        self.snr_win = pg.PlotWidget()
+        self.init_rsrp_snr_plot()
+        # TODO: change the button to signal-slot
+        # self.test_btn = QPushButton("test_update")
+        # self.test_btn.clicked.connect(lambda: self.update_rsrp_snr_plot())
+
+        rsrp_snr_layout.addWidget(self.rsrp_win)
+        rsrp_snr_layout.addWidget(self.snr_win)
+        # rsrp_snr_layout.addWidget(self.test_btn)
+        self.p_rsrp = self.rsrp_win.plot(pen=QColor(116, 69, 255), width='200', symbolSize=5, symbolBrush=(255, 0, 0),
+                                         symbolPen='w')
+        self.p_snr = self.snr_win.plot(pen=QColor(255, 230, 153), width='200', symbolSize=5, symbolBrush=(255, 0, 0),
+                                       symbolPen='w')
+
+        self.rsrp_snr_plot_gbox.setLayout(rsrp_snr_layout)
+
     # Button functions
+    # # Open config_editor
+    @pyqtSlot(name='OPEN_CONFIG_EDITOR')
+    def btn_fn_open_config_editor_dlg(self):
+        self.config_editor_dlg.exec_()
+        # TODO: sync the config from dialog to self.config
+
     # # AT command buttons
     @pyqtSlot(name='BTN_RSP_SEND_AT_CMD')
     def btn_fn_send_at_command(self, idx):
@@ -626,6 +604,7 @@ class LogDecoderTabview(QWidget):
 
     @pyqtSlot(name='SELECT_DECODER_XML')
     def btn_fn_select_decoder_xml(self):
+        # This one is temporarily deprecated. Will be introduced later.
         options = QFileDialog.Options()
         # options |= QFileDialog.DontUseNativeDialog
         file_name, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "",
@@ -634,7 +613,6 @@ class LogDecoderTabview(QWidget):
             print('Message definition chosen: {0}'.format(file_name))
         else:
             print('[ERROR] Unknown message definition.')
-
 
     # # Session start/stop control
     @pyqtSlot(name='START_SESSION')
@@ -768,20 +746,6 @@ class LogDecoderTabview(QWidget):
         print('Success:', success_count)
         self.append_sys_log('Downlink received success: {0}/{1}'.format(success_count, count))
 
-    @pyqtSlot(name='SIMPLIFY_OPTION_CHANGED')
-    def cbx_fn_simplify_option(self):
-        current_state = self.disp_simplified_log_cb.checkState()
-        if current_state:
-            self.append_sys_log('Simplify option is set to True.')
-        else:
-            self.append_sys_log('Simplify option is set to False.')
-        if current_state == 0:
-            self.config['Simplify log'] = False
-        elif current_state == 2:
-            self.config['Simplify log'] = True
-        else:
-            print('Unknown simplify log option.')
-
     @pyqtSlot(name='PAUSE_OR_RESUME_LIVE_MEASUREMENT')
     def btn_fn_pause_or_resume_live_measurement(self):
         if self.config['Enable live measurement'] is True:
@@ -865,7 +829,7 @@ class LogDecoderTabview(QWidget):
         self.append_sys_log('Filter config updated. New filter options: {0}'.format(self.config['Filter dict']))
 
     @pyqtSlot(name='BTN_CLEAR_MONITOR')
-    def btm_fn_clear_monitor(self, monitor_name):
+    def btn_fn_clear_monitor(self, monitor_name):
         # only accept 'Main' and 'Secondary' as input.
         if monitor_name == 'Main':
             self.main_monitor.setPlainText('')
@@ -915,33 +879,23 @@ class LogDecoderTabview(QWidget):
         self.stop_ul_btn.setDisabled(True)
         self.start_customized_script_btn.setDisabled(True)
         self.start_dl_btn.setDisabled(True)
-        self.pause_and_resume_lm_btn.setDisabled(True)
+        # self.pause_and_resume_lm_btn.setDisabled(True)
+
         # Enable section
         self.dev_name_input.setEnabled(True)
         self.at_port_cbb.setEnabled(True)
         self.at_baud_cbb.setEnabled(True)
         self.dbg_port_cbb.setEnabled(True)
-        self.export_raw_cb.setEnabled(True)
-        self.export_decoded_cb.setEnabled(True)
-        self.keep_filtered_log_cb.setEnabled(True)
-        self.export_format_rb_txt.setEnabled(True)
-        self.export_format_rb_csv.setEnabled(True)
-        self.time_format_input.setEnabled(True)
-        self.disp_time_format_rb_strf.setEnabled(True)
-        self.disp_time_format_rb_raw.setEnabled(True)
-        self.disp_time_format_rb_zero.setEnabled(True)
         self.start_btn.setEnabled(True)
-        self.create_socket_cb.setEnabled(True)
 
-        # self.filter_no_rb.setEnabled(True)
-        # self.filter_in_rb.setEnabled(True)
-        # self.filter_out_rb.setEnabled(True)
-        # self.filter_input.setEnabled(True)
+        # Set element availabilities in ConfigurationEditor dialog
+        self.config_editor_dlg.set_availability_in_stop_mode_dlg()
 
         self.at_command_input_1.returnPressed.disconnect()
         self.at_command_input_2.returnPressed.disconnect()
         self.at_command_input_3.returnPressed.disconnect()
 
+        # self.pause_and_resume_lm_btn.setText('Pause')
         self.select_key_log_btn.setEnabled(True)
 
     def set_availability_in_running_mode(self):
@@ -950,25 +904,14 @@ class LogDecoderTabview(QWidget):
         self.at_port_cbb.setDisabled(True)
         self.at_baud_cbb.setDisabled(True)
         self.dbg_port_cbb.setDisabled(True)
-        self.export_raw_cb.setDisabled(True)
-        self.export_decoded_cb.setDisabled(True)
-        self.keep_filtered_log_cb.setDisabled(True)
-        self.export_format_rb_txt.setDisabled(True)
-        self.export_format_rb_csv.setDisabled(True)
-        self.time_format_input.setDisabled(True)
-        self.disp_time_format_rb_strf.setDisabled(True)
-        self.disp_time_format_rb_raw.setDisabled(True)
-        self.disp_time_format_rb_zero.setDisabled(True)
         self.start_btn.setDisabled(True)
-        self.create_socket_cb.setDisabled(True)
 
-        # self.filter_no_rb.setDisabled(True)
-        # self.filter_in_rb.setDisabled(True)
-        # self.filter_out_rb.setDisabled(True)
-        # self.filter_input.setDisabled(True)
+        # Set element availabilities in ConfigurationEditor
+        self.config_editor_dlg.set_availability_in_running_mode_dlg()
 
         self.stop_ul_btn.setDisabled(True)
         self.select_key_log_btn.setDisabled(True)
+
         # Enable section
         self.stop_btn.setEnabled(True)
         self.send_btn_1.setEnabled(True)
@@ -980,8 +923,8 @@ class LogDecoderTabview(QWidget):
         self.start_ul_btn.setEnabled(True)
         self.start_customized_script_btn.setEnabled(True)
         self.start_dl_btn.setEnabled(True)
-        self.pause_and_resume_lm_btn.setEnabled(True)
-        self.pause_and_resume_lm_btn.setText('Pause')
+        # self.pause_and_resume_lm_btn.setEnabled(True)
+        # self.pause_and_resume_lm_btn.setText('Pause')
 
         self.at_command_input_1.returnPressed.connect(lambda: self.btn_fn_send_at_command(0))
         self.at_command_input_2.returnPressed.connect(lambda: self.btn_fn_send_at_command(1))
@@ -1018,27 +961,10 @@ class LogDecoderTabview(QWidget):
             self.config['Filter dict']['FO'] = []
             self.config['Filter dict']['FI'] = []
 
-        # Export config
-        self.config['Export raw'] = self.export_raw_cb.isChecked()
-        self.config['Export decoded'] = self.export_decoded_cb.isChecked()
-        self.config['Keep filtered logs'] = self.keep_filtered_log_cb.isChecked()
-        self.config['Export filename time prefix'] = self.time_format_input.text()
-        if self.export_format_rb_txt.isChecked():
-            self.config['Export format'] = 'txt'
-        else:
-            self.config['Export format'] = 'csv'
-
-        # Dispaly config
-        self.config['Simplify log'] = self.disp_simplified_log_cb.isChecked()
-        if self.disp_time_format_rb_strf.isChecked():
-            self.config['Display time format'] = 'local'
-        elif self.disp_time_format_rb_raw.isChecked():
-            self.config['Display time format'] = 'raw'
-        elif self.disp_time_format_rb_zero.isChecked():
-            self.config['Display time format'] = 'zero'
+        # Deal with the configs in ConfigurationEditor
+        self.sync_config_from_cfg_editor()
 
         # Socket config
-        self.config['Create socket at start'] = self.create_socket_cb.isChecked()
         self.config['UDP server IP'] = self.socket_ip_input.text()
         self.config['UDP server port'] = self.socket_port_input.text()
         self.config['UDP local port'] = self.local_port_input.text()
@@ -1054,7 +980,8 @@ class LogDecoderTabview(QWidget):
         self.config['UL packet delay'] = self.ul_packet_delay_input.text()
 
         # Special config that is not in the UI:
-        self.config['Enable live measurement'] = True
+        # TODO: 20190326 the live measurement is disabled FOREVER. used pyqtgraph instead.
+        self.config['Enable live measurement'] = False  # True
         self.config['Key log list'] = self.key_log_options_dlg.key_log_selection_result
 
         print('[INFO] Your configurations:', self.config)
@@ -1103,7 +1030,7 @@ class LogDecoderTabview(QWidget):
         self.dev_name_input.setText(last_config['Device name'])
         self.at_baud_cbb.setCurrentText(last_config['AT baudrate'])
         available_items = [self.at_port_cbb.itemText(i) for i in range(self.at_port_cbb.count())]
-        print(available_items)
+        # print(available_items)
         if last_config['AT port'] in available_items:
             self.at_port_cbb.setCurrentText(last_config['AT port'])
         if last_config['Dbg port'] in available_items:
@@ -1122,26 +1049,12 @@ class LogDecoderTabview(QWidget):
         filter_str = list_to_string(my_set)
         self.filter_input.setText(filter_str)
 
-        # Export config
-        self.export_raw_cb.setChecked(last_config['Export raw'])
-        self.export_decoded_cb.setChecked(last_config['Export decoded'])
-        self.keep_filtered_log_cb.setChecked(last_config['Keep filtered logs'])
-        self.time_format_input.setText(last_config['Export filename time prefix'])
-        if last_config['Export format'] == 'txt':
-            self.export_format_rb_txt.setChecked(True)
-        else:
-            self.export_format_rb_csv.setChecked(True)
+        self.config_editor_dlg.load_previous_config_from_json(last_config)
 
-        # Display config
-        disp_format = last_config['Display time format']
-        if disp_format == 'local':
-            self.disp_time_format_rb_strf.setChecked(True)
-        elif disp_format == 'raw':
-            self.disp_time_format_rb_raw.setChecked(True)
-        elif disp_format == 'zero':
-            self.disp_time_format_rb_zero.setChecked(True)
 
-        self.create_socket_cb.setChecked(last_config['Create socket at start'])
+        self.ul_packet_num_input.setText(last_config['UL packet num'])
+        self.ul_packet_len_input.setText(last_config['UL packet len'])
+        self.ul_packet_delay_input.setText(last_config['UL packet delay'])
 
         # Previous AT command input.
         self.at_command_input_1.setText(last_config['AT command 1'])
@@ -1165,27 +1078,45 @@ class LogDecoderTabview(QWidget):
                                       'Note that this is for display purpose. You can check the "Keep filtered logs"'
                                       'on the right to export the not-showing logs to file.')
         self.filter_input.setToolTip('Separate multiple message names by comma ",".')
-        self.keep_filtered_log_cb.setToolTip(
-            'If checked, everything is saved, otherwise the filtered-out logs are discarded.')
-        self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
-                                          '%H, %M, %S: hour/minute/second in two digits\n'
-                                          'For more info, check http://strftime.org/')
-        self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
-        self.export_raw_cb.setToolTip('Raw HEX log is in .txt format. No log will be discarded.')
+
         self.start_btn.setToolTip('Create AT and debug serial handler and start recording the logs.\n'
                                   'Every time you start will generate a new log file.')
         self.stop_btn.setToolTip('Stop the logging, delete the serial handlers.')
         self.at_command_input_1.setToolTip(
             'You can also press Enter to send the command. The three input fields are equivalent')
-        self.disp_simplified_log_cb.setToolTip(
-            'If checked, the details of the log is not displayed. This option will not'
-            'change the exported log.')
         self.create_socket_btn.setToolTip('Only works when no socket exists.')
         self.close_socket_btn.setToolTip('Only works when sockets exist.')
         self.update_filter_btn.setToolTip('The later updated filter configs will not be written into the local disk '
                                           'unless start the logging again.')
 
+        # The following tooltips are for elements in ConfigurationEditor
+        self.config_editor_dlg.add_tool_tips_dlg()
+
     # Multithread signal processing
+    # # Fetch updated configs from Configuration Editor
+    @pyqtSlot(name='SYNC_CONFIG_FROM_EDITOR')
+    def sync_config_from_cfg_editor(self):
+        new_config = self.config_editor_dlg.dlg_config.copy()
+        print('[DBG] Current config: {0}\n[DBG] Updated config: {1}'.format(self.config, new_config))
+        # Make 100% sure the variables are consistent!
+        self.config['Create socket at start'] = new_config['Create socket at start']
+        self.config['Enable power monitor module'] = new_config['Enable power monitor module']
+        self.config['Enable GPS module'] = new_config['Enable GPS module']
+
+        self.config['Export raw'] = new_config['Export raw']
+        self.config['Export decoded'] = new_config['Export decoded']
+        self.config['Keep filtered logs'] = new_config['Keep filtered logs']
+        self.config['Export filename time prefix'] = new_config['Export filename time prefix']
+        self.config['Export format'] = new_config['Export format']
+        self.config['Simplify log'] = new_config['Simplify log']
+        if self.config['Simplify log']:
+            self.append_sys_log('Show simplified debug logs.')
+        else:
+            self.append_sys_log('Show verbose debug logs.')
+        self.config['Display time format'] = new_config['Display time format']
+
+        print('[INFO] Config sync done.')
+
     # # Debug decoder signal slots
     @pyqtSlot(name='THREAD_FETCH_LOG')
     def dbg_fetch_log(self):
@@ -1203,7 +1134,7 @@ class LogDecoderTabview(QWidget):
 
                 # process the key logs
                 if self.decoder.res != None:
-                    self.get_key_log(self.decoder.res.copy())
+                    self.get_key_log(self.decoder.res)
 
         new_sys_info = self.decoder.sys_info_buf.copy()
         self.decoder.sys_info_buf = []
@@ -1216,6 +1147,44 @@ class LogDecoderTabview(QWidget):
             # Update the live measurement monitor only this feature is enabled.
             msg = self.format_live_measurement_result(self.decoder.live_measurement_buf)
             self.live_measurement_monitor.setPlainText(msg)
+
+    @pyqtSlot(name='FETCH_RSRP_SNR_DATA')
+    def dbg_fetch_rsrp_snr(self):
+        try:
+            measurement_dict = self.decoder.rsrp_snr_buf.copy()
+        except AttributeError:
+            print('[ERROR] Debug UART is not found - 2')
+            return -1
+
+        print(measurement_dict)
+        self.decoder.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}  # reset the buf
+        self.samptime += [x - self.decoder.start_timestamp for x in measurement_dict['ts']]
+        self.rsrp_data += [float(x)/10 for x in measurement_dict['RSRP']]
+        self.snr_data += [float(x)/10 for x in measurement_dict['SNR']]
+        self.update_rsrp_snr_plot()
+
+    def update_rsrp_snr_plot(self):
+        # self.prt += 2
+        self.p_rsrp.setData(x=self.samptime, y=self.rsrp_data)
+        self.p_snr.setData(x=self.samptime, y=self.snr_data)
+
+    def init_rsrp_snr_plot(self):
+        self.rsrp_win.showGrid(x=True, y=True)
+        self.rsrp_win.setRange(yRange=[-140, -75], padding=0)
+        self.rsrp_win.setAutoPan(y=True)
+        self.rsrp_win.setLabel(axis='left', text='RSRP')
+        # self.rsrp_win.setLabel(axis='bottom', text='Time')
+        # self.rsrp_win.setTitle('RSRP_Monitor')
+        self.rsrp_win.setBackground(QColor(10, 50, 80))
+
+        self.snr_win.showGrid(x=True, y=True)
+        self.snr_win.setRange(yRange=[-14.0, 25.0], padding=0)
+        self.snr_win.setAutoPan(y=True)
+        self.snr_win.setLabel(axis='left', text='SNR')
+        # self.snr_win.setLabel(axis='bottom', text='Time')
+        # self.snr_win.setTitle('SNR_Monitor')
+        self.snr_win.setBackground(QColor(10, 50, 80))
+
 
     def format_live_measurement_result(self, mes_dict):
         # Format the result and display it in the top right PlainTextEdit
@@ -1296,3 +1265,4 @@ class LogDecoderTabview(QWidget):
                     formatted_key_logs = formatted_key_logs + '\n--- ' + item
             self.key_log_monitor.appendPlainText(formatted_key_logs)
             self.key_log_monitor.appendPlainText('--------')
+

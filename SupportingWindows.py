@@ -1,8 +1,11 @@
+# -*- coding: UTF-8 -*-
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import json
 import os.path
+from utils import YouAreSoQ
+
 
 VERSION = '0.4 Alpha'
 LAST_UPDATE = '2019.03.25'
@@ -41,23 +44,30 @@ class AboutMessageBox(QDialog):
 
 
 class ConfigurationEditor(QDialog):
+    config_updated_trigger = pyqtSignal()
 
     def __init__(self):
         super(ConfigurationEditor, self).__init__()
         self.dlg_config = {}  # configs set in the Qdialog (subset of all the configs)
-
+        g_q_style = YouAreSoQ()
+        self.groupbox_stylesheet = g_q_style.groupbox_stylesheet
+        self.lb_font = g_q_style.lb_font
+        self.btn_font = g_q_style.large_btn_font
 
         self.initUI()
 
 
     def initUI(self):
         self.setWindowTitle('Configuration Editor')
-        self.setFixedSize(500, 600)  # (W, H)
+        self.setFixedWidth(500)
+        self.setMinimumHeight(550)
+        self.setMaximumHeight(650)
         # cfg_editor_layout = QVBoxLayout()
+        config_editor_dialog_v_layout = QVBoxLayout()
 
         self.exp_disp_gbox = QGroupBox('Export and Display Configurations')
-        self.exp_disp_gbox.setMaximumWidth(400)
-        self.exp_disp_gbox.setMinimumWidth(350)
+        # self.exp_disp_gbox.setMaximumWidth(400)
+        # self.exp_disp_gbox.setMinimumWidth(350)
         self.exp_disp_gbox.setStyleSheet(self.groupbox_stylesheet)
 
         hline = QFrame()
@@ -65,6 +75,19 @@ class ConfigurationEditor(QDialog):
         hline.setFrameShadow(QFrame.Sunken)
 
         config_v_layout = QVBoxLayout()
+
+        misc_lb = QLabel('Miscellaneous')
+        misc_lb.setFont(self.lb_font)
+        # Socket configuration
+        self.create_socket_cb = QCheckBox('Create socket at starting')
+        self.create_socket_cb.setChecked(True)
+
+        self.enable_power_monitor_cb = QCheckBox('Enable Monsoon power monitor module (Need restart)')
+        self.enable_power_monitor_cb.setChecked(True)
+
+        self.enable_gps_module_cb = QCheckBox('Enable GPS tracking module (Need restart)')
+        self.enable_gps_module_cb.setChecked(True)
+
 
         # Export configuration
         export_lb = QLabel('Export')
@@ -98,9 +121,9 @@ class ConfigurationEditor(QDialog):
         export_format_h_layout = QHBoxLayout()
         export_format_bg = QButtonGroup(export_format_h_layout)
         export_format_lb = QLabel('File format')
-        self.export_format_rb_txt = QRadioButton('txt')
+        self.export_format_rb_txt = QRadioButton('.txt')
 
-        self.export_format_rb_csv = QRadioButton('csv')
+        self.export_format_rb_csv = QRadioButton('.csv')
         self.export_format_rb_csv.setChecked(True)
 
         export_format_bg.addButton(self.export_format_rb_txt)
@@ -118,7 +141,7 @@ class ConfigurationEditor(QDialog):
 
         self.disp_simplified_log_cb = QCheckBox('Simplify debug log display')
         self.disp_simplified_log_cb.setChecked(True)
-        self.disp_simplified_log_cb.stateChanged.connect(self.cbx_fn_simplify_option)
+        # self.disp_simplified_log_cb.stateChanged.connect(self.cbx_fn_simplify_option)
 
         # disp_time_format_lb = QLabel('Display time format')
         self.disp_time_format_rb_strf = QRadioButton('Local Time (e.g. 18-08-18 10:11:55.12353)')
@@ -140,12 +163,16 @@ class ConfigurationEditor(QDialog):
         disp_v_layout.addWidget(self.disp_time_format_rb_zero)
 
         # accept and cancel button
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
+        decision_btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        decision_btn_box.accepted.connect(self.accept)
+        decision_btn_box.rejected.connect(self.reject)
 
-        self.accepted.connect(self.config_ok_clicked)
+        self.accepted.connect(self.config_ok_btn_clicked)
 
+        config_v_layout.addWidget(misc_lb)
+        config_v_layout.addWidget(self.create_socket_cb)
+        config_v_layout.addWidget(self.enable_power_monitor_cb)
+        config_v_layout.addWidget(self.enable_gps_module_cb)
         config_v_layout.addWidget(export_lb)
         config_v_layout.addWidget(log_type_lb)
         config_v_layout.addLayout(export_h_layout)
@@ -153,12 +180,89 @@ class ConfigurationEditor(QDialog):
         config_v_layout.addLayout(export_format_h_layout)
         config_v_layout.addWidget(hline)
         config_v_layout.addLayout(disp_v_layout)
+        config_v_layout.addStretch()
 
         self.exp_disp_gbox.setLayout(config_v_layout)
 
+        config_editor_dialog_v_layout.addWidget(self.exp_disp_gbox)
+        config_editor_dialog_v_layout.addWidget(decision_btn_box)
+        self.setLayout(config_editor_dialog_v_layout)
+
+    def load_previous_config_from_json(self, last_config):
+        # Socket create config
+        self.create_socket_cb.setChecked(last_config['Create socket at start'])
+        self.enable_power_monitor_cb.setChecked(last_config['Enable power monitor module'])
+        self.enable_gps_module_cb.setChecked(last_config['Enable GPS module'])
+
+        # Export config
+        self.export_raw_cb.setChecked(last_config['Export raw'])
+        self.export_decoded_cb.setChecked(last_config['Export decoded'])
+        self.keep_filtered_log_cb.setChecked(last_config['Keep filtered logs'])
+        self.time_format_input.setText(last_config['Export filename time prefix'])
+        if last_config['Export format'] == 'txt':
+            self.export_format_rb_txt.setChecked(True)
+        else:
+            self.export_format_rb_csv.setChecked(True)
+
+        # Display config
+        disp_format = last_config['Display time format']
+        if disp_format == 'local':
+            self.disp_time_format_rb_strf.setChecked(True)
+        elif disp_format == 'raw':
+            self.disp_time_format_rb_raw.setChecked(True)
+        elif disp_format == 'zero':
+            self.disp_time_format_rb_zero.setChecked(True)
+
+
+        self.dlg_config = last_config  # Sync everything to prevent KeyErrors.
+
+    def set_availability_in_stop_mode_dlg(self):
+        self.create_socket_cb.setEnabled(True)
+
+        self.export_raw_cb.setEnabled(True)
+        self.export_decoded_cb.setEnabled(True)
+        self.keep_filtered_log_cb.setEnabled(True)
+        self.export_format_rb_txt.setEnabled(True)
+        self.export_format_rb_csv.setEnabled(True)
+
+        self.time_format_input.setEnabled(True)
+        self.disp_time_format_rb_strf.setEnabled(True)
+        self.disp_time_format_rb_raw.setEnabled(True)
+        self.disp_time_format_rb_zero.setEnabled(True)
+
+    def set_availability_in_running_mode_dlg(self):
+        self.create_socket_cb.setDisabled(True)
+
+        self.export_raw_cb.setDisabled(True)
+        self.export_decoded_cb.setDisabled(True)
+        self.keep_filtered_log_cb.setDisabled(True)
+        self.export_format_rb_txt.setDisabled(True)
+        self.export_format_rb_csv.setDisabled(True)
+
+        self.time_format_input.setDisabled(True)
+        self.disp_time_format_rb_strf.setDisabled(True)
+        self.disp_time_format_rb_raw.setDisabled(True)
+        self.disp_time_format_rb_zero.setDisabled(True)
+
+    def add_tool_tips_dlg(self):
+
+        self.keep_filtered_log_cb.setToolTip(
+            'If checked, everything is saved, otherwise the filtered-out logs are discarded.')
+        self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
+                                                            '%H, %M, %S: hour/minute/second in two digits\n'
+                                                            'For more info, check http://strftime.org/')
+        self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
+        self.export_raw_cb.setToolTip('Raw HEX log is in .txt format. No log will be discarded.')
+        self.disp_simplified_log_cb.setToolTip(
+            'If checked, the details of the log is not displayed. This option will not'
+            'change the exported log.')
+
     @pyqtSlot()
     def config_ok_btn_clicked(self):
-        self.key_log_selection_result = {}
+        # Socket create config
+        self.dlg_config['Create socket at start'] = self.create_socket_cb.isChecked()
+        self.dlg_config['Enable power monitor module'] = self.enable_power_monitor_cb.isChecked()
+        self.dlg_config['Enable GPS module'] = self.enable_gps_module_cb.isChecked()
 
         # Export config
         self.dlg_config['Export raw'] = self.export_raw_cb.isChecked()
@@ -178,6 +282,8 @@ class ConfigurationEditor(QDialog):
             self.dlg_config['Display time format'] = 'raw'
         elif self.disp_time_format_rb_zero.isChecked():
             self.dlg_config['Display time format'] = 'zero'
+
+        self.config_updated_trigger.emit()
 
 
 

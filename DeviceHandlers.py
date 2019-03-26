@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import serial
 import time
 from PyQt5.QtCore import *
@@ -11,7 +12,7 @@ class UeAtController(object):
         print(current_time)
         # print("Connected to the UE via the serial port.")
         self.ser = serial.Serial(com, baudrate, timeout=2)
-        print('UE serial connection established.')
+        print('[INFO] UE serial connection established.')
 
         self.log_flag = enable_logging_flag
         self.qt_flag = qt_flag

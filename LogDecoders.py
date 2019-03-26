@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from collections import OrderedDict
 import csv
 from datetime import datetime
@@ -456,6 +457,8 @@ class UlvLogDecoder(DebugLogDecoder):
 
 class UartOnlineLogDecoder(DebugLogDecoder):
     dbg_uart_trigger = pyqtSignal()
+    update_rsrp_snr_trigger = pyqtSignal()
+    update_npusch_power_trigger = pyqtSignal()
 
     def __init__(self, config):
 
@@ -476,15 +479,20 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.filter_out_count = 0  # Record the discarded log count
         self.filter_in_count = 0  # Record the kept log count
 
+        file_time = time.strftime(self.config['Export filename time prefix'], time.localtime(time.time()))
+        self.start_timestamp = time.time()  # This is the 0 offset of the rest timestamps.
+
         self.transfer_buf = []  # Transfer the decoded log
         self.sys_info_buf = []  # Transfer the system info
+        # Transfer the incoming signal measurement to main thread.
+        self.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}
+        self.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}
+
         self.live_measurement_buf = {'ECL': -1, 'CSQ': -1, 'RSRP': -1, 'SNR': -1, 'Cell ID': -1,
                                      'Current state': -1,
                                      'Last update': -1}  # Transfer the live measurement results to the main thread
         # Live measurement order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
 
-        file_time = time.strftime(self.config['Export filename time prefix'], time.localtime(time.time()))
-        self.start_timestamp = time.time()  # This is the 0 offset of the rest timestamps.
 
         if self.config['Export raw'] is True:
             # Create the raw log when this function is enabled.
@@ -610,11 +618,12 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     self.application_report_export_processing(parsed_log_list)
                 else:
                     disp_list = self.parse_one_msg_common(
-                        str_buf)  # Order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                        str_buf)  # Output order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
                     # TODO: Bookmarked. extract info from log.
-                    self.extract_info_from_log(disp_list)
-                    parsed_log_list += disp_list
+                    # self.extract_info_from_log(disp_list)
+                    parsed_log_list += disp_list  # parsed_log_list have time. disp_list only has message info.
                     self.display_export_processing(parsed_log_list)
+                    self.dy_extract_rsrp_snr_from_log(parsed_log_list)
                     # print(parsed_log_dict)
                 st = states['FINISHED']
             elif st == states['FINISHED']:
@@ -637,6 +646,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         if len(info_list) <= 5:
             print('[ERROR] Missing element in Info List.')
+        # TODO: here may cause an out of index error.
         is_filtered = self.check_filters(info_list[4])
 
         if is_filtered is False:
@@ -787,3 +797,53 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         msg_name = decoded_list[1]
         if msg_name == 'LL1_LOG_ECL_INFO':
             print(decoded_list[-1])
+
+    def dy_extract_rsrp_snr_from_log(self, complete_log_list):
+        # list[1] is time stamp
+        # list[-1] is ordered message list
+        # list[-1][-1] is decoded msg.
+        # list[4] is message name
+        measurement_msg_name = 'LL1_NRS_MEASUREMENT_LOG'  # note that the following indexes only work for this log.
+
+        time_stamp = complete_log_list[1]
+        log_name = complete_log_list[4]
+        if log_name == measurement_msg_name:
+            # print(complete_log_list)
+            msg_payload = complete_log_list[-1]
+            incoming_rsrp = msg_payload['rsrp']
+            incoming_snr = msg_payload['snr']
+            self.rsrp_snr_buf['ts'].append(time_stamp)
+            self.rsrp_snr_buf['RSRP'].append(incoming_rsrp)
+            self.rsrp_snr_buf['SNR'].append(incoming_snr)
+
+            self.update_rsrp_snr_trigger.emit()  # tell the LogDecoderTabview to fetch data.
+
+    def extract_npusch_power_from_log(self, complete_log_list):
+        # self.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}
+        npusch_msg = ['LL1_PUSCH_CALC_TX_POWER', 'LL1_DCI_FORMAT_N0', 'LL1_DCI_FORMAT_N1', 'LL1_RAR_UL_GRANT']
+        time_stamp = complete_log_list[1]
+        log_name = complete_log_list[4]
+
+        if log_name in npusch_msg:
+            msg_payload = complete_log_list[-1]
+            self.npusch_power_buf['ts'].append(time_stamp)
+            if log_name == 'LL1_DCI_FORMAT_N0':
+                self.npusch_power_buf['type'].append('DATA')
+                self.npusch_power_buf['repetition'].append(msg_payload['dci_n0.repetition_number'])
+                self.npusch_power_buf['iru'].append(msg_payload['dci_n0.resource_assignment_iru']) # only DCI N0 has iru
+            elif log_name == 'LL1_DCI_FORMAT_N1':
+                self.npusch_power_buf['type'].append('UCI')
+                self.npusch_power_buf['repetition'].append(msg_payload['dci_n1.repetition_number'])
+                self.npusch_power_buf['iru'].append('')
+            elif log_name == 'LL1_RAR_UL_GRANT':
+                self.npusch_power_buf['type'].append('MSG3')
+                self.npusch_power_buf['repetition'].append(msg_payload['rar_pdu.repetition_number'])
+                self.npusch_power_buf['iru'].append('')
+            else:
+                self.npusch_power_buf['power_db'].append(msg_payload['tx_power_db'])
+
+        self.update_npusch_power_trigger.emit()
+
+
+
+

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from PyQt5.QtCore import *
 import os
 import time

@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import sys
 import os
 from LogDecoderTabview import LogDecoderTabview
@@ -51,14 +52,7 @@ class QuectelDebugLogAnalyzer(QMainWindow):
         self.setMinimumSize(self.min_width, self.min_height)
 
         # status bar
-        self.statusBar().showMessage('Everything works well.')
-
-        # logger configuration
-        # self.config = StartupConfigurator()
-        # self.config.exec_()
-
-        # connect to UE
-        # print('Configurations: ', self.config.config_results)
+        self.statusBar().showMessage('Everything works well. A status bar makes a complete GUI software.')
 
         # menu bar
         main_menu = self.menuBar()

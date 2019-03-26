@@ -1,6 +1,8 @@
+# -*- coding: UTF-8 -*-
 import sys
 import glob
 import serial
+from PyQt5.QtGui import *
 
 
 def list_serial_ports():
@@ -53,5 +55,25 @@ def list_to_string(input_list):
     return ret_str
 
 
+class YouAreSoQ(object):
+
+    def __init__(self):
+        # put the unified style control elements here.
+        self.lb_font = QFont("Helvetica", 10)
+        self.lb_font.setBold(True)
+        self.normal_btn_font = QFont("Helvetica", 12)
+        self.normal_btn_font.setBold(True)
+        self.large_btn_font = QFont("Helvetica", 14)
+        self.large_btn_font.setBold(True)
+
+        self.large_btn_stylesheet = 'QPushButton {border-radius: 10px;' \
+                                    'border-style: solid;' \
+                                    'border-color: grey;' \
+                                    'border-width: 1px;}'
+
+        self.groupbox_stylesheet = 'QGroupBox {font-size: 16px;' \
+                                   'font-weight: bold;} ' \
+                                   'Widget {font-weight: normal;}'
+
 if __name__ == '__main__':
-    print(list_serial_ports())
+    print('Avaialable ports:', list_serial_ports())
