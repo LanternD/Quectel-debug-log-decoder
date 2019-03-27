@@ -61,6 +61,9 @@ class YouAreSoQ(object):
         # put the unified style control elements here.
         self.lb_font = QFont("Helvetica", 10)
         self.lb_font.setBold(True)
+        self.middle_lb_font = QFont('Helvetica', 12)
+        self.large_lb_font = QFont('Helvetica', 14)
+
         self.normal_btn_font = QFont("Helvetica", 12)
         self.normal_btn_font.setBold(True)
         self.large_btn_font = QFont("Helvetica", 14)

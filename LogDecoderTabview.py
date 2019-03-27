@@ -4,8 +4,11 @@ Naming convention:
     Groupbox: xx_gbox
     PushButton: xx_btn
     PlanTextEdit: xx_monitor
+    TextEdit: xx_ted
     Label: xx_lb
-    Dialog: XX_dlg
+    Dialog: xx_dlg
+    Checkbox: xx_cb
+    ComboBox: xx_cmb
 '''
 
 import csv
@@ -79,7 +82,6 @@ class LogDecoderTabview(QWidget):
         left_section_layout.addWidget(self.serial_config_gbox)
         left_section_layout.addWidget(self.filter_config_gbox)
         left_section_layout.addWidget(self.display_gbox)
-        self.controller_gbox.setMaximumWidth(400)
 
         right_section_layout.addWidget(self.controller_gbox)
         right_section_layout.addWidget(self.rsrp_snr_plot_gbox)
@@ -106,7 +108,6 @@ class LogDecoderTabview(QWidget):
                                    'UL packet num', 'UL packet len', 'UL packet delay',
                                    'Simplify log', 'Enable live measurement', 'Key log list',
                                    'Enable power monitor module', 'Enable GPS module')
-        self.load_config_from_json()
 
         # Measurement results
         self.main_log_text = ''  # Just a variable that store the txt in main monitor for reference.
@@ -117,6 +118,9 @@ class LogDecoderTabview(QWidget):
         self.cm_recorder_thread = None
         self.cm_csv = None
         self.cm_count = 0
+
+        # Load config or setup in the first run.
+        self.load_config_from_json()
 
     # Create handlers
     def ue_serial_handler(self):
@@ -299,6 +303,7 @@ class LogDecoderTabview(QWidget):
     def create_config_editor_btn_module(self):
         self.config_update_btn_gbox = QGroupBox('Configurations')
         self.config_update_btn_gbox.setStyleSheet(self.groupbox_stylesheet)
+        self.config_update_btn_gbox.setMinimumWidth(250)
 
         open_config_editor_btn = QPushButton('Update Configuration')
         open_config_editor_btn.setMinimumWidth(100)
@@ -315,7 +320,7 @@ class LogDecoderTabview(QWidget):
     def create_controller_module(self):
         self.controller_gbox = QGroupBox('Controller Panel')
         self.controller_gbox.setStyleSheet(self.groupbox_stylesheet)
-        self.controller_gbox.setMaximumWidth(400)
+        self.controller_gbox.setMaximumWidth(500)
         self.controller_gbox.setMinimumWidth(350)
 
         hline = QFrame()
@@ -563,6 +568,8 @@ class LogDecoderTabview(QWidget):
 
         self.rsrp_snr_plot_gbox = QGroupBox('RSRP SNR Plot')
         self.rsrp_snr_plot_gbox.setStyleSheet(self.groupbox_stylesheet)
+        self.rsrp_snr_plot_gbox.setMinimumWidth(220)
+        self.rsrp_snr_plot_gbox.setMaximumWidth(500)
 
         ### the data
         self.rsrp_data = []
@@ -1012,7 +1019,8 @@ class LogDecoderTabview(QWidget):
                 j_file.close()
         else:
             # TODO: add the configurator window here.
-            print('config.json does not exist.')
+            print('[INFO] config.json does not exist.')
+            self.config_editor_dlg.exec_()
             return 0
 
         # Check the integrity of the json file.
@@ -1156,7 +1164,7 @@ class LogDecoderTabview(QWidget):
             print('[ERROR] Debug UART is not found - 2')
             return -1
 
-        print(measurement_dict)
+        # print(measurement_dict)
         self.decoder.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}  # reset the buf
         self.samptime += [x - self.decoder.start_timestamp for x in measurement_dict['ts']]
         self.rsrp_data += [float(x)/10 for x in measurement_dict['RSRP']]
@@ -1184,7 +1192,6 @@ class LogDecoderTabview(QWidget):
         # self.snr_win.setLabel(axis='bottom', text='Time')
         # self.snr_win.setTitle('SNR_Monitor')
         self.snr_win.setBackground(QColor(10, 50, 80))
-
 
     def format_live_measurement_result(self, mes_dict):
         # Format the result and display it in the top right PlainTextEdit
@@ -1266,3 +1273,5 @@ class LogDecoderTabview(QWidget):
             self.key_log_monitor.appendPlainText(formatted_key_logs)
             self.key_log_monitor.appendPlainText('--------')
 
+    @pyqtSlot(name='FETCH_UL_TX_INFO')
+    def dbg_fetch_ul_param(self):

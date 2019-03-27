@@ -617,8 +617,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     parsed_log_list.append(self.hex_to_ascii(str_buf))
                     self.application_report_export_processing(parsed_log_list)
                 else:
-                    disp_list = self.parse_one_msg_common(
-                        str_buf)  # Output order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
+                    disp_list = self.parse_one_msg_common(str_buf)
+                    # Output order: msg_id_dec, msg_name, msg_src, msg_dest, msg_length, decoded_msg
                     # TODO: Bookmarked. extract info from log.
                     # self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list  # parsed_log_list have time. disp_list only has message info.
@@ -647,16 +647,19 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         if len(info_list) <= 5:
             print('[ERROR] Missing element in Info List.')
         # TODO: here may cause an out of index error.
-        is_filtered = self.check_filters(info_list[4])
+        try:
+            is_filtered = self.check_filters(info_list[4])
+        except IndexError:
+            is_filtered = True
 
         if is_filtered is False:
             if self.config['Run in Qt']:
-                res_disp_new = self.format_timestamp_in_qt(
-                    res_disp)  # res_disp_new has formatted time according to the config.
+                res_disp_new = self.format_timestamp_in_qt(res_disp)
+                # res_disp_new has formatted time according to the config.
                 self.transfer_buf.append(res_disp_new)
                 self.dbg_uart_trigger.emit()  # Tell the main thread to fetch data.
             else:
-                # Note: if the GUI is enabled. The log will not be printed out in STDOUT.
+                # Note: if the GUI is enabled. The log will not be printed out in STDOUT (too messy).
                 print(res_disp)
 
         # Apply the filter, exporting
@@ -803,6 +806,9 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         # list[-1] is ordered message list
         # list[-1][-1] is decoded msg.
         # list[4] is message name
+        if len(complete_log_list) < 6:
+            # Missing element. Not moving forward.
+            return
         measurement_msg_name = 'LL1_NRS_MEASUREMENT_LOG'  # note that the following indexes only work for this log.
 
         time_stamp = complete_log_list[1]
@@ -820,6 +826,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
     def extract_npusch_power_from_log(self, complete_log_list):
         # self.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}
+        if len(complete_log_list) < 6:
+            return
         npusch_msg = ['LL1_PUSCH_CALC_TX_POWER', 'LL1_DCI_FORMAT_N0', 'LL1_DCI_FORMAT_N1', 'LL1_RAR_UL_GRANT']
         time_stamp = complete_log_list[1]
         log_name = complete_log_list[4]
