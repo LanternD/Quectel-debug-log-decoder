@@ -11,10 +11,11 @@ from utils import *
 
 class CurrentLivePlotter(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, file_io, parent=None):
 
         super(CurrentLivePlotter, self).__init__(parent)
         self.flag = 0
+        self.file_io = file_io
         self.live_file = open('./CurrentPlottingModule/usb_live.txt', 'r')
         self.temp_data = 0
         self.file_data = []
@@ -119,6 +120,9 @@ class CurrentLivePlotter(QWidget):
             self.p.setData(self.data)
             self.usb_panel.display(self.temp_data)
             self.idx += 1
+        # Write to file.
+        # FIXME: File IO bookmark
+        self.file_io.write_power_monitor_current([time.time(), self.temp_data])
 
     def Start_Monitor(self):
         if self.flag == 1:

@@ -31,13 +31,14 @@ from utils import *
 
 class LogDecoderTabview(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, file_io, parent=None):
         super(LogDecoderTabview, self).__init__(parent)
 
         self.config = {}  # the global config that control the workflow
         # Initialization to prevent AttributeErrors and KeyErrors
         self.config['UDP local socket'] = 'X'
         self.config['Filter dict'] = {'FO': [], 'FI': []}
+        self.file_io = file_io
         self.decoder = None
         self.ue_handler = None
 
@@ -138,11 +139,12 @@ class LogDecoderTabview(QWidget):
             print('[INFO] Socket #:', self.config['UDP local socket'])
 
     def dbg_serial_handler(self):
-        self.decoder = UartOnlineLogDecoder(self.config)
+        self.decoder = UartOnlineLogDecoder(self.config, self.file_io)
         self.decoder.xml_loader()
         self.decoder.start()
         self.decoder.dbg_uart_trigger.connect(self.dbg_fetch_log)
         self.decoder.update_rsrp_snr_trigger.connect(self.dbg_fetch_rsrp_snr)
+        self.decoder.update_npusch_power_trigger.connect(self.dbg_fetch_npusch_param)
         self.append_sys_log('Debug decoder Streaming is started.')
 
     # Create UI zone
@@ -499,7 +501,6 @@ class LogDecoderTabview(QWidget):
             self.live_measurement_monitor = QPlainTextEdit()  # The text display region
             self.live_measurement_monitor.setFixedHeight(150)
             self.live_measurement_monitor.setPlaceholderText('Start logging to measure and display the data.')
-            # TODO: Find out the key log that contains the interesting measurement result, without reading from AT port
 
             self.enable_live_measurement_flag = True  # Indicate whether it is running or paused.
             self.pause_and_resume_lm_btn = QPushButton('Pause/Resume')
@@ -581,9 +582,6 @@ class LogDecoderTabview(QWidget):
         self.rsrp_win = pg.PlotWidget()
         self.snr_win = pg.PlotWidget()
         self.init_rsrp_snr_plot()
-        # TODO: change the button to signal-slot
-        # self.test_btn = QPushButton("test_update")
-        # self.test_btn.clicked.connect(lambda: self.update_rsrp_snr_plot())
 
         rsrp_snr_layout.addWidget(self.rsrp_win)
         rsrp_snr_layout.addWidget(self.snr_win)
@@ -627,6 +625,14 @@ class LogDecoderTabview(QWidget):
         if self.get_all_config() == True:
             self.save_config_to_json()
 
+            # Clear the RSRP SNR plot buffer
+            self.samptime = []
+            self.rsrp_data = []
+            self.snr_data = []
+
+            # Create files to write
+            self.file_io.reset_handler()
+
             # Create UE AT handler
             self.ue_serial_handler()
             self.dbg_serial_handler()
@@ -634,7 +640,7 @@ class LogDecoderTabview(QWidget):
             self.append_sys_log('Start program')
             self.run_status = True
         else:
-            # self.append_sys_log('Error in config setting detected.')
+            self.append_sys_log('[ERROR] Failed to start. Errors in config setting detected.')
             print('[ERROR] Configuration error detected.')
 
     @pyqtSlot(name='STOP_SESSION')
@@ -661,6 +667,9 @@ class LogDecoderTabview(QWidget):
         del self.decoder
         self.ue_handler = None
         self.decoder = None
+
+        # FIXME: determine close socket or file IO first.
+        self.file_io.stop_debug_log_file_recording()
 
         self.append_sys_log('Debug port stopped.')
 
@@ -1018,7 +1027,6 @@ class LogDecoderTabview(QWidget):
                 last_config = json_data
                 j_file.close()
         else:
-            # TODO: add the configurator window here.
             print('[INFO] config.json does not exist.')
             self.config_editor_dlg.exec_()
             return 0
@@ -1140,12 +1148,13 @@ class LogDecoderTabview(QWidget):
                 self.main_log_text += log
                 self.display_ue_log(log)
 
-                # process the key logs
-                if self.decoder.res != None:
+                # Process the key logs
+                # TODO: add the key log process in the future
+                if self.decoder.res != None and False:
                     self.get_key_log(self.decoder.res)
 
         new_sys_info = self.decoder.sys_info_buf.copy()
-        self.decoder.sys_info_buf = []
+        self.decoder.sys_info_buf = []  # clear the decoder buffer.
         if new_sys_info != []:
             for sys_info in new_sys_info:
                 self.append_sys_log(sys_info)
@@ -1169,6 +1178,11 @@ class LogDecoderTabview(QWidget):
         self.samptime += [x - self.decoder.start_timestamp for x in measurement_dict['ts']]
         self.rsrp_data += [float(x)/10 for x in measurement_dict['RSRP']]
         self.snr_data += [float(x)/10 for x in measurement_dict['SNR']]
+
+        # FIXME: RSRP SNR writer.
+        self.file_io.write_rsrp_snr([measurement_dict['ts'], measurement_dict['RSRP'],
+                                     measurement_dict['SNR']])
+
         self.update_rsrp_snr_plot()
 
     def update_rsrp_snr_plot(self):
@@ -1274,4 +1288,34 @@ class LogDecoderTabview(QWidget):
             self.key_log_monitor.appendPlainText('--------')
 
     @pyqtSlot(name='FETCH_UL_TX_INFO')
-    def dbg_fetch_ul_param(self):
+    def dbg_fetch_npusch_param(self):
+        try:
+            npusch_param_dict = self.decoder.npusch_power_buf.copy()
+        except AttributeError:
+            print('[ERROR] Debug UART is not found - 2')
+            return -1
+
+        # print(measurement_dict)
+        self.decoder.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []} # reset the buf
+        key_log_info_append = self.format_npusch_power_display(npusch_param_dict)
+        self.key_log_monitor.appendPlainText(key_log_info_append)
+        self.key_log_monitor_cursor.movePosition(QTextCursor.End)  # autoscroll
+        self.key_log_monitor.setTextCursor(self.key_log_monitor_cursor)
+
+    def format_npusch_power_display(self, npd):  # npusch param dict
+        try:
+            ts = time.strftime('%H:%M:%S', time.localtime(npd['ts'][0]))
+        except IndexError:
+            print('[ERROR] Empty time stamp in NPUSCH parameter buffer.', npd)
+            ts = '??'
+        msg_dict = [ts, npd['type'], npd['power_db'], npd['repetition'], npd['iru']]
+        # FIXME: NPUSCH file IO bookmark
+        self.file_io.write_npusch_parameters(msg_dict)
+
+        # TODO: add a write to file module
+        msg = 'TIME: {0}\nTYPE: {1}\nTXDB: {2}\nREPE: {3}\nIRU: {4}\n'.format(msg_dict[0], msg_dict[1],
+                                                                              msg_dict[2], msg_dict[3],
+                                                                              msg_dict[4])
+        # print(msg)
+        return msg
+

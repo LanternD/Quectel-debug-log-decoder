@@ -16,9 +16,10 @@ from utils import *
 
 class GpsTabview(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, file_io, parent=None):
 
         super(GpsTabview, self).__init__(parent)
+        self.file_io = file_io
 
         g_q_style = YouAreSoQ()
         self.groupbox_stylesheet = g_q_style.groupbox_stylesheet
@@ -37,6 +38,8 @@ class GpsTabview(QWidget):
 
         self.last_lat = ''
         self.last_long = ''
+
+        self.is_the_first_point = True  # no idea what is it...
 
         self.line_color_choice = 0  # switch between red and blue line.
 
@@ -120,7 +123,7 @@ class GpsTabview(QWidget):
 
         self.gps_baud_cmb = QComboBox()
         self.gps_baud_cmb.addItems(baud_options_str)
-        self.gps_baud_cmb.setCurrentIndex(baud_options_str.index('115200'))
+        self.gps_baud_cmb.setCurrentIndex(baud_options_str.index('9600'))
 
         self.stop_gps_update_btn = QPushButton('Stop Update')
         self.stop_gps_update_btn.clicked.connect(self.btn_fn_stop_auto_update)
@@ -183,13 +186,13 @@ class GpsTabview(QWidget):
         # Lat =str(float(Lat[:-2]))
         # Lon =str(float(Lon[:-2]))
 
-        if self.map_flag == 0:
+        if self.is_the_first_point:
             # Add point (the first point)
             self.map_viewer.page().runJavaScript('''add_point(''' + lat + ''',''' + long + ''');''')
-            self.map_flag += 1
+            self.is_the_first_point = False
             self.last_lat = lat
             self.last_long = long
-            self.append_text_to_gps_monitor('[INFO] Add a new Point')
+            self.append_text_to_gps_monitor('[INFO] Add a new Point.')
         else:
             # Add polyline
             if self.last_lat != lat or self.last_long != long:
@@ -200,15 +203,11 @@ class GpsTabview(QWidget):
                     self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + self.last_long + ''',''' + lat + ''',''' + long + '''',"blue");''')
                     self.line_color_choice = 0
                 #self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
-                self.map_flag += 1
-                self.last_lat = lat
-                self.last_long = long
                 self.append_text_to_gps_monitor('[INFO] Add a new point and a trace')
             else:
-                self.map_flag += 1
-                self.last_lat = lat
-                self.last_long = long
                 self.append_text_to_gps_monitor('[INFO] Location not changed')
+            self.last_lat = lat
+            self.last_long = long
 
     @pyqtSlot(name='BTN_FN_START_GPS_UPDATE')
     def btn_fn_start_map_update(self):
@@ -270,12 +269,14 @@ class GpsTabview(QWidget):
                                                           self.gps_live_data['Longitude Deg']))
             long = self.gps_live_data['Latitude Deg']
             lat = self.gps_live_data['Longitude Deg']
+            # FIXME: gps file IO bookmark
+            self.file_io.write_gps_points([time.time(), lat, long])
             self.refresh_map(lat, long)
 
-        self.lat_raw_ted.setText(self.gps_live_data['Latitude'])
+        self.lat_raw_ted.setText(self.gps_live_data['Latitude Raw'])
         self.lat_decimal_ted.setText(self.gps_live_data['Latitude Deg'])
         self.lat_dms_ted.setText(self.gps_live_data['Latitude'])
-        self.lon_raw_ted.setText(self.gps_live_data['Longitude'])
+        self.lon_raw_ted.setText(self.gps_live_data['Longitude Raw'])
         self.lon_decimal_ted.setText(self.gps_live_data['Longitude Deg'])
         self.long_dms_ted.setText(self.gps_live_data['Longitude'])
 

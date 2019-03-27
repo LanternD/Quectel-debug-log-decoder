@@ -460,7 +460,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
     update_rsrp_snr_trigger = pyqtSignal()
     update_npusch_power_trigger = pyqtSignal()
 
-    def __init__(self, config):
+    def __init__(self, config, file_io):
 
         dev_name = config['Device name']
         uart_port = config['Dbg port']
@@ -472,8 +472,11 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.dbg_run_flag = True
         self.config = config
 
-        self.f_exp = None
-        self.f_exp_csv_writer = None
+        self.file_io = file_io
+        # self.f_raw = self.file_io.debug_log_raw_file
+        # self.f_raw_csv_writer = self.file_io.debug_log_raw_writer
+        # self.f_exp = self.file_io.debug_log_formatted_file  # None
+        # self.f_exp_csv_writer = self.file_io.debug_log_formatted_writer  # None
         self.res = None  # decoded results.
 
         self.filter_out_count = 0  # Record the discarded log count
@@ -493,7 +496,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                                      'Last update': -1}  # Transfer the live measurement results to the main thread
         # Live measurement order: ECL, CSQ, RSRP, SNR, Cell ID, Current state, last update time
 
-
+        # Update: 20190327 Use FileIOHandler instead.
+        '''
         if self.config['Export raw'] is True:
             # Create the raw log when this function is enabled.
             raw_log_path = '{0}{1}_{2}_raw.txt'.format(self.log_dir, file_time, self.device_name)
@@ -513,6 +517,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             if self.config['Export format'] == 'csv':
                 self.f_exp_csv_writer = csv.writer(self.f_exp)
             self.sys_info_buf.append('Decoded log file created at: {0}.'.format(file_path))
+        '''
 
     def read_byte(self, num):
         # Read byte from debug UART and format it.
@@ -610,7 +615,8 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
                 if self.config['Export raw']:
                     # Export only if this feature is enabled.
-                    self.f_raw_csv_writer.writerow(raw_buf)
+                    # self.f_raw_csv_writer.writerow(raw_buf)
+                    self.file_io.write_debug_log_raw(raw_buf)
 
                 if app_rep_flag is True:
                     str_buf.reverse()  # There is another reverse in the hex to ascii function.
@@ -623,13 +629,16 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                     # self.extract_info_from_log(disp_list)
                     parsed_log_list += disp_list  # parsed_log_list have time. disp_list only has message info.
                     self.display_export_processing(parsed_log_list)
-                    self.dy_extract_rsrp_snr_from_log(parsed_log_list)
+                    if len(parsed_log_list) >= 6 and parsed_log_list[4] != 'N/A':  # msg name
+                        self.dy_extract_rsrp_snr_from_log(parsed_log_list)
+                        self.extract_npusch_power_from_log(parsed_log_list)
                     # print(parsed_log_dict)
                 st = states['FINISHED']
             elif st == states['FINISHED']:
                 parsed_log_list = empty_msg_list.copy()
-                if self.config['Export decoded'] is True:
-                    self.f_exp.flush()
+                if self.config['Export decoded']:
+                    # self.f_exp.flush()
+                    self.file_io.debug_log_formatted_file.flush()
                 st = states['PREAMBLE']  # Recycle the UART state machine
             elif st == states['UNKNOWN']:
                 print('[ERROR] Something wrong happens. Reset to PREAMBLE state.')
@@ -646,7 +655,6 @@ class UartOnlineLogDecoder(DebugLogDecoder):
 
         if len(info_list) <= 5:
             print('[ERROR] Missing element in Info List.')
-        # TODO: here may cause an out of index error.
         try:
             is_filtered = self.check_filters(info_list[4])
         except IndexError:
@@ -671,9 +679,11 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             if is_filtered is False:
                 # This log need to be export
                 if self.config['Export format'] == 'txt':
-                    self.f_exp.write(self.res)
+                    # self.f_exp.write(self.res)
+                    self.file_io.write_debug_log_formatted(info_list)
                 elif self.config['Export format'] == 'csv':
-                    self.f_exp_csv_writer.writerow(info_list)
+                    # self.f_exp_csv_writer.writerow(info_list)
+                    self.file_io.write_debug_log_formatted(info_list)
 
     def application_report_export_processing(self, info_list):
         first_line = '#{0}\t{1}\t{2}\t{3}\t\n'.format(info_list[0], info_list[1],
@@ -696,9 +706,11 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             if is_filtered is False:
                 # This log need to be export
                 if self.config['Export format'] == 'txt':
-                    self.f_exp.write(whole_app_rep)
+                    # self.f_exp.write(whole_app_rep)
+                    self.file_io.write_debug_log_formatted(whole_app_rep)
                 elif self.config['Export format'] == 'csv':
-                    self.f_exp_csv_writer.writerow(info_list)
+                    # self.f_exp_csv_writer.writerow(info_list)
+                    self.file_io.write_debug_log_formatted(info_list)
 
     def check_filters(self, log_name):
 
@@ -811,10 +823,10 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             return
         measurement_msg_name = 'LL1_NRS_MEASUREMENT_LOG'  # note that the following indexes only work for this log.
 
-        time_stamp = complete_log_list[1]
-        log_name = complete_log_list[4]
-        if log_name == measurement_msg_name:
+        msg_name = complete_log_list[4]
+        if msg_name == measurement_msg_name:
             # print(complete_log_list)
+            time_stamp = complete_log_list[1]
             msg_payload = complete_log_list[-1]
             incoming_rsrp = msg_payload['rsrp']
             incoming_snr = msg_payload['snr']
@@ -827,30 +839,34 @@ class UartOnlineLogDecoder(DebugLogDecoder):
     def extract_npusch_power_from_log(self, complete_log_list):
         # self.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}
         if len(complete_log_list) < 6:
-            return
+            return  # invalid packets
         npusch_msg = ['LL1_PUSCH_CALC_TX_POWER', 'LL1_DCI_FORMAT_N0', 'LL1_DCI_FORMAT_N1', 'LL1_RAR_UL_GRANT']
-        time_stamp = complete_log_list[1]
-        log_name = complete_log_list[4]
-
-        if log_name in npusch_msg:
+        msg_name = complete_log_list[4]
+        if msg_name not in npusch_msg:
+            return  # save computation resource
+        else:
+            time_stamp = complete_log_list[1]
             msg_payload = complete_log_list[-1]
             self.npusch_power_buf['ts'].append(time_stamp)
-            if log_name == 'LL1_DCI_FORMAT_N0':
+            if msg_name == 'LL1_DCI_FORMAT_N0':
                 self.npusch_power_buf['type'].append('DATA')
-                self.npusch_power_buf['repetition'].append(msg_payload['dci_n0.repetition_number'])
-                self.npusch_power_buf['iru'].append(msg_payload['dci_n0.resource_assignment_iru']) # only DCI N0 has iru
-            elif log_name == 'LL1_DCI_FORMAT_N1':
+                self.npusch_power_buf['repetition'].append(msg_payload['dci_n0']['repetition_number'])
+                self.npusch_power_buf['iru'].append(msg_payload['dci_n0']['resource_assignment_iru']) # only DCI N0 has iru
+            elif msg_name == 'LL1_DCI_FORMAT_N1':
                 self.npusch_power_buf['type'].append('UCI')
-                self.npusch_power_buf['repetition'].append(msg_payload['dci_n1.repetition_number'])
+                self.npusch_power_buf['repetition'].append(msg_payload['dci_n1']['repetition_number'])
                 self.npusch_power_buf['iru'].append('')
-            elif log_name == 'LL1_RAR_UL_GRANT':
+            elif msg_name == 'LL1_RAR_UL_GRANT':
                 self.npusch_power_buf['type'].append('MSG3')
-                self.npusch_power_buf['repetition'].append(msg_payload['rar_pdu.repetition_number'])
+                self.npusch_power_buf['repetition'].append(msg_payload['rar_pdu']['repetition_number'])
                 self.npusch_power_buf['iru'].append('')
             else:
                 self.npusch_power_buf['power_db'].append(msg_payload['tx_power_db'])
 
-        self.update_npusch_power_trigger.emit()
+            if self.npusch_power_buf['iru'] != [] and self.npusch_power_buf['type'] != [] and \
+                self.npusch_power_buf['repetition'] != [] and self.npusch_power_buf['power_db'] != []:
+                # get a list and return
+                self.update_npusch_power_trigger.emit()
 
 
 
