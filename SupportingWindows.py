@@ -289,6 +289,7 @@ class ConfigurationEditor(QDialog):
 
 class KeyLogConfigurator(QDialog):
 
+    # TODO: move the key log configurator to a tab in the configuration window
     def __init__(self):
         super(KeyLogConfigurator, self).__init__()
         self.title = 'Key Log Selection'

@@ -109,34 +109,34 @@ class CurrentLivePlotter(QWidget):
         if line and line != '':
             self.temp_data = float(line)
 
-            if len(self.data) > 5000:
-                self.data[:-1] = self.data[1:]  # shift data left
-                self.data[-1] = self.temp_data
-                self.time_data[:-1] = self.time_data[1:]
-                self.time_data[-1] = self.idx
+        if len(self.data) > 5000:
+            self.data[:-1] = self.data[1:]  # shift data left
+            self.data[-1] = self.temp_data
+            self.time_data[:-1] = self.time_data[1:]
+            self.time_data[-1] = self.idx
 
-            else:
-                self.data.append(self.temp_data)
-                self.time_data.append(self.idx)
-        
-            self.idx += 1
+        else:
+            self.data.append(self.temp_data)
+            self.time_data.append(self.idx)
+
+        self.idx += 1
 
 
-            # self.p.setPos(self.idx-1000,self.idx+1000)
-            # self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
-            self.p.setData(x=self.time_data , y=self.data)
-            #self.p.setPos(self.idx, 0)
-            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
-            self.usb_panel.display(self.temp_data)
+        # self.p.setPos(self.idx-1000,self.idx+1000)
+        # self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
+        self.p.setData(x=self.time_data , y=self.data)
+        #self.p.setPos(self.idx, 0)
+        self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
+        self.usb_panel.display(self.temp_data)
 
-            # Write to file.
-            # FIXME: File IO bookmark
-            self.file_io.write_power_monitor_current([time.time(), self.temp_data])
+        # Write to file.
+        # FIXME: File IO bookmark
+        self.file_io.write_power_monitor_current([time.time(), self.temp_data])
 
     def start_monitor(self):
         if self.flag == 1:
             time.sleep(2)
-            self.timer.start(0.001)
+            self.timer.start(0.0001)
         else:
             self.timer = pg.QtCore.QTimer()
             self.timer.timeout.connect(lambda: self.update_data())
@@ -151,6 +151,5 @@ class CurrentLivePlotter(QWidget):
 
     def stop_monitor(self):
         self.timer.stop()
-        #self.power_monitor = None
         self.flag = 1
         # self.t_monitor.terminate()

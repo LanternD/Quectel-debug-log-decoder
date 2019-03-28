@@ -141,6 +141,7 @@ class DebugLogDecoder(QThread):
         else:
             msg_length = self.hex_to_decimal(msg_length_hex)
 
+        # FIXME: find out which part cause "Empty hex list" (return -1)
         try:
             msg_src = self.layer_dict[msg_src_idx]
         except KeyError:
@@ -489,7 +490,6 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         self.sys_info_buf = []  # Transfer the system info
         # Transfer the incoming signal measurement to main thread.
         self.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}
-        # self.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}
         self.npusch_power_buf = ['', '', '', '', '']  # ts, type, power db, repetition, iru number
 
         self.live_measurement_buf = {'ECL': -1, 'CSQ': -1, 'RSRP': -1, 'SNR': -1, 'Cell ID': -1,
@@ -851,34 +851,20 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             msg_payload = complete_log_list[-1]
             # Order: ts, type, power db, repetition, iru number
             self.npusch_power_buf[0] = time_stamp
-            print(time_stamp)
+            # print(time_stamp)
             if msg_name == 'LL1_DCI_FORMAT_N0':
-                self.npusch_power_buf[1:] = ['DAT', 'X', msg_payload['dci_n0']['repetition_number'],
+                self.npusch_power_buf[1:] = ['DAT', ' ', msg_payload['dci_n0']['repetition_number'],
                                              msg_payload['dci_n0']['resource_assignment_iru']]
-                # self.npusch_power_buf[1] = 'DATA'
-                # self.npusch_power_buf['repetition'].append(msg_payload['dci_n0']['repetition_number'])
-                # self.npusch_power_buf['iru'].append(msg_payload['dci_n0']['resource_assignment_iru']) # only DCI N0 has iru
             elif msg_name == 'LL1_DCI_FORMAT_N1_NORMAL':
                 # FIXME: decoder.xml has error: the "repetition_number" is "repetion_number". S**t happens.
-                self.npusch_power_buf[1:] = ['UCI', 'X', msg_payload['dci_n1']['repetion_number'], 'X']
-                # self.npusch_power_buf[1].append('UCI')  # ACK
-                # self.npusch_power_buf['repetition'].append(msg_payload['dci_n1']['repetition_number'])
-                # self.npusch_power_buf['iru'].append(' ')
+                self.npusch_power_buf[1:] = ['UCI', ' ', msg_payload['dci_n1']['repetion_number'], ' ']
             elif msg_name == 'LL1_RAR_UL_GRANT':
-                self.npusch_power_buf[1:] = ['MG3', 'X', msg_payload['rar_pdu']['repetition_number'], 'X']
-                # self.npusch_power_buf['type'].append('MSG3')
-                # self.npusch_power_buf['repetition'].append(msg_payload['rar_pdu']['repetition_number'])
-                # self.npusch_power_buf['iru'].append(' ')
+                self.npusch_power_buf[1:] = ['MG3', ' ', msg_payload['rar_pdu']['repetition_number'], ' ']
             elif msg_name == 'LL1_PUSCH_CALC_TX_POWER':
-                # self.npusch_power_buf['power_db'].append(msg_payload['tx_power_db'])
-                self.npusch_power_buf[1:] = ['PWR', msg_payload['tx_power_db'], 'X', 'X']
+                self.npusch_power_buf[1:] = ['PWR', msg_payload['tx_power_db'], ' ', ' ']
             else:
                 print('[ERROR] Wrong place. Payload:', msg_payload)
 
-            # if self.npusch_power_buf['iru'] != [] and self.npusch_power_buf['type'] != [] and \
-            #     self.npusch_power_buf['repetition'] != [] and self.npusch_power_buf['power_db'] != []:
-            #     # get a list and return
-            #     self.update_npusch_power_trigger.emit()
             self.update_npusch_power_trigger.emit()
 
 

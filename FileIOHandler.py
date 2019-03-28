@@ -108,17 +108,17 @@ class FileIOHandler(QThread):
             print('[ERROR] RSRP&SNR write not found.')
 
     def create_files_and_writers(self):
-        self.debug_log_raw_file = open(self.output_foder_path + 'debug_log_raw.txt', 'w')
+        self.debug_log_raw_file = open(self.output_foder_path + 'debug_log_raw.txt', 'w', newline='')
         self.debug_log_raw_writer = csv.writer(self.debug_log_raw_file)
-        self.debug_log_formatted_file = open(self.output_foder_path + 'debug_log_formatted.csv', 'w')
+        self.debug_log_formatted_file = open(self.output_foder_path + 'debug_log_formatted.csv', 'w', newline='')
         self.debug_log_formatted_writer = csv.writer(self.debug_log_formatted_file)
-        self.current_file = open(self.output_foder_path + 'current.csv', 'w')
+        self.current_file = open(self.output_foder_path + 'current.csv', 'w', newline='')
         self.current_writer = csv.writer(self.current_file)
-        self.gps_file = open(self.output_foder_path + 'geolocatation.csv', 'w')
+        self.gps_file = open(self.output_foder_path + 'geolocatation.csv', 'w', newline='')
         self.gps_writer = csv.writer(self.gps_file)
-        self.npusch_log_file = open(self.output_foder_path + 'npusch_parameters.csv', 'w')
+        self.npusch_log_file = open(self.output_foder_path + 'npusch_parameters.csv', 'w', newline='')
         self.npusch_log_writer = csv.writer(self.npusch_log_file)
-        self.rsrp_snr_log_file = open(self.output_foder_path + 'rsrp_snr.csv', 'w')
+        self.rsrp_snr_log_file = open(self.output_foder_path + 'rsrp_snr.csv', 'w', newline='')
         self.rsrp_snr_log_writer = csv.writer(self.rsrp_snr_log_file)
 
     def stop_debug_log_file_recording(self):
