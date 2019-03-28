@@ -23,6 +23,7 @@ class FileIOHandler(QThread):
         self.rsrp_snr_log_writer = None
 
         self.file_io_run_flag = True
+        self.err_print_cnt_list = [0, 0]  # current, gps
         # self.reset_handler()
 
     def reset_handler(self):
@@ -63,6 +64,7 @@ class FileIOHandler(QThread):
         elif writer_selection == 'rsrp':
             self.write_rsrp_snr(input)
 
+    # TODO: add a counter to prevent too many 'writer not found' errors.
     def write_debug_log_raw(self, dbg_log_raw):
         if self.debug_log_raw_writer is not None:
             self.debug_log_raw_writer.writerow(dbg_log_raw)
@@ -78,8 +80,11 @@ class FileIOHandler(QThread):
     def write_power_monitor_current(self, current_list):
         if self.current_writer is not None:
             self.current_writer.writerow(current_list)
+            self.err_print_cnt_list[0] = 0
         else:
-            print('[ERROR] Power current file writer not found.')
+            if self.err_print_cnt_list[0] <= 5:
+                print('[ERROR] Power current file writer not found.')
+                self.err_print_cnt_list[0] += 1
 
     def write_npusch_parameters(self, param_list):
         if self.npusch_log_writer is not None:
@@ -90,8 +95,11 @@ class FileIOHandler(QThread):
     def write_gps_points(self, location):
         if self.gps_writer is not None:
             self.gps_writer.writerow(location)
+            self.err_print_cnt_list[1] = 0
         else:
-            print('[ERROR] GPS writer not found.')
+            if self.err_print_cnt_list[1] < 5:
+                print('[ERROR] GPS writer not found.')
+                self.err_print_cnt_list[1] += 1
 
     def write_rsrp_snr(self, rsrp_snr_list):
         if self.rsrp_snr_log_writer is not None:

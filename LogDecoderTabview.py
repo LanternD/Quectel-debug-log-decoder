@@ -119,6 +119,7 @@ class LogDecoderTabview(QWidget):
         self.cm_recorder_thread = None
         self.cm_csv = None
         self.cm_count = 0
+        self.npusch_disp_count = 0
 
         # Load config or setup in the first run.
         self.load_config_from_json()
@@ -546,7 +547,9 @@ class LogDecoderTabview(QWidget):
         self.select_key_log_btn.clicked.connect(self.btn_fn_select_key_log)
 
         self.key_log_monitor = QPlainTextEdit()
+        self.key_log_monitor.setFont(QFont('Source Code Pro', 10))
         self.key_log_monitor.setPlaceholderText('List the selected key logs in time order.')
+        # self.key_log_monitor.setTabStopWidth(8)
         self.key_log_monitor_cursor = self.key_log_monitor.textCursor()
         self.clear_key_log_btn = QPushButton('Clear Key Logs')
 
@@ -1189,6 +1192,8 @@ class LogDecoderTabview(QWidget):
         # self.prt += 2
         self.p_rsrp.setData(x=self.samptime, y=self.rsrp_data)
         self.p_snr.setData(x=self.samptime, y=self.snr_data)
+        self.rsrp_win.setRange(xRange=[self.samptime[-1] - 10, self.samptime[-1] + 1])
+        self.snr_win.setRange(xRange=[self.samptime[-1] - 10, self.samptime[-1] + 1])
 
     def init_rsrp_snr_plot(self):
         self.rsrp_win.showGrid(x=True, y=True)
@@ -1290,32 +1295,38 @@ class LogDecoderTabview(QWidget):
     @pyqtSlot(name='FETCH_UL_TX_INFO')
     def dbg_fetch_npusch_param(self):
         try:
-            npusch_param_dict = self.decoder.npusch_power_buf.copy()
+            npusch_param_list = self.decoder.npusch_power_buf.copy()
         except AttributeError:
             print('[ERROR] Debug UART is not found - 2')
             return -1
 
         # print(measurement_dict)
-        self.decoder.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []} # reset the buf
-        key_log_info_append = self.format_npusch_power_display(npusch_param_dict)
+        # self.decoder.npusch_power_buf = {'ts': [], 'type': [], 'power_db': [], 'repetition': [], 'iru': []}  # reset the buf
+        self.decoder.npusch_power_buf = ['', '', '', '', '']  # ts, type, power db, repetition, iru number
+        key_log_info_append = self.format_npusch_power_display(npusch_param_list)
+        self.npusch_disp_count += 1
+        if self.npusch_disp_count % 10 == 0:
+            key_log_info_append = '\nTS\t{0:4s}{1:4s}{2:4s}{3:4s}\n'.format('TP', 'DB', 'REP', 'IRU') + key_log_info_append
         self.key_log_monitor.appendPlainText(key_log_info_append)
-        self.key_log_monitor_cursor.movePosition(QTextCursor.End)  # autoscroll
-        self.key_log_monitor.setTextCursor(self.key_log_monitor_cursor)
+        # self.key_log_monitor_cursor.movePosition(QTextCursor.End)  # autoscroll
+        # self.key_log_monitor.setTextCursor(self.key_log_monitor_cursor)
 
-    def format_npusch_power_display(self, npd):  # npusch param dict
+    def format_npusch_power_display(self, np_list):  # npusch param dict
         try:
-            ts = time.strftime('%H:%M:%S', time.localtime(npd['ts'][0]))
+            ts = time.strftime('%H:%M:%S', time.localtime(np_list[0]))
         except IndexError:
-            print('[ERROR] Empty time stamp in NPUSCH parameter buffer.', npd)
+            print('[ERROR] Empty time stamp in NPUSCH parameter buffer.', np_list)
             ts = '??'
-        msg_dict = [ts, npd['type'], npd['power_db'], npd['repetition'], npd['iru']]
+        except TypeError:
+            ts = time.strftime('%H:%M:%S', time.localtime(time.time()))
+        # msg_dict = [ts, npd['type'], npd['power_db'], npd['repetition'], npd['iru']]
+        msg_dict = [ts] + np_list[1:]
         # FIXME: NPUSCH file IO bookmark
         self.file_io.write_npusch_parameters(msg_dict)
 
         # TODO: add a write to file module
-        msg = 'TIME: {0}\nTYPE: {1}\nTXDB: {2}\nREPE: {3}\nIRU: {4}\n'.format(msg_dict[0], msg_dict[1],
-                                                                              msg_dict[2], msg_dict[3],
-                                                                              msg_dict[4])
+        # 'TIME: {0}\nTYPE: {1}\nTXDB: {2}\nREPE: {3}\nIRU: {4}\n'
+        msg = '{0}\t{1:4s}{2:4s}{3:4s}{4:4s}'.format(msg_dict[0], msg_dict[1], msg_dict[2], msg_dict[3], msg_dict[4])
         # print(msg)
         return msg
 

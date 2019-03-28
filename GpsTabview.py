@@ -32,6 +32,7 @@ class GpsTabview(QWidget):
         self.gps_text_edit_stylesheet = "QTextEdit {height: 18px;" \
                                         "width: 80px}"
         self.setStyleSheet(self.gps_text_edit_stylesheet)
+        self.display_log_control_counter = 0
 
         self.lat = '114.197574'  # Latitude
         self.long = '22.32383'  # Longitude
@@ -42,6 +43,8 @@ class GpsTabview(QWidget):
         self.is_the_first_point = True  # no idea what is it...
 
         self.line_color_choice = 0  # switch between red and blue line.
+
+        self.get_loss_counter = 0  # if there is more than x 'N/A', we consider the signal is lost.
 
         self.init_ui()  # prepare the self.x GUI elements
         # self.update_map()
@@ -54,6 +57,7 @@ class GpsTabview(QWidget):
     def init_map(self):
         import os
         map_html_path = 'file://' + os.getcwd() + '/assets/baidu_map_interface.html'
+        map_html_path.replace('\\', '/')  # deal with windows paths.
         print('[INFO] GPS map:' + map_html_path)
         # map_html_path = 'http://www.qt.io/'
         self.map_viewer.load(QUrl(map_html_path))
@@ -180,6 +184,16 @@ class GpsTabview(QWidget):
 
         self.setLayout(gps_main_layout)
 
+        self.add_tool_tips()
+
+    def add_tool_tips(self):
+        self.start_gps_update_btn.setToolTip('If you want to save points to file, Click \'Start\' in '
+                                             'Log Decoder tab first. \nThe settings in this tab will '
+                                             'not be added to the config.json.')
+        self.auto_update_cb.setToolTip('If auto update is disabled, you need to manually click'
+                                       ' \'Start Update\' to add one point.')
+        self.stop_gps_update_btn.setToolTip('The GPS streaming is disabled. No more points will be added.')
+
     def refresh_map(self, lat, long):
         lat = str(float(lat[:-2]) + 0.011731)  # add a bias to make the map accurate
         long = str(float(long[:-2]) + 0.004051)
@@ -192,10 +206,11 @@ class GpsTabview(QWidget):
             self.is_the_first_point = False
             self.last_lat = lat
             self.last_long = long
-            self.append_text_to_gps_monitor('[INFO] Add a new Point.')
+            self.append_text_to_gps_monitor('[INFO] Add the first point.')
         else:
             # Add polyline
             if self.last_lat != lat or self.last_long != long:
+                self.display_log_control_counter += 1
                 if self.line_color_choice == 0:
                     self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + self.last_long + ''',''' + lat + ''',''' + long + ''',"red");''')
                     self.line_color_choice = 1
@@ -203,11 +218,12 @@ class GpsTabview(QWidget):
                     self.map_viewer.page().runJavaScript('''add_polyline(''' + self.last_lat + ''',''' + self.last_long + ''',''' + lat + ''',''' + long + '''',"blue");''')
                     self.line_color_choice = 0
                 #self.map_viewer.page().runJavaScript('''add_point(''' + Lat + ''',''' + Lon + ''');''')
-                self.append_text_to_gps_monitor('[INFO] Add a new point and a trace')
-            else:
-                self.append_text_to_gps_monitor('[INFO] Location not changed')
-            self.last_lat = lat
-            self.last_long = long
+                if self.display_log_control_counter % 5 == 0:
+                    self.append_text_to_gps_monitor('[INFO] Add 5 new points and traces')
+            # else:
+            #     self.append_text_to_gps_monitor('[INFO] Location not changed')
+        self.last_lat = lat
+        self.last_long = long
 
     @pyqtSlot(name='BTN_FN_START_GPS_UPDATE')
     def btn_fn_start_map_update(self):
@@ -216,6 +232,7 @@ class GpsTabview(QWidget):
             gps_com_port = self.gps_port_cmb.currentText()
             gps_baud = self.gps_baud_cmb.currentText()
             self.gps_handler = GpsController(gps_com_port, gps_baud)
+            self.gps_handler.streaming_flag = True
             self.gps_handler.start()
             self.append_text_to_gps_monitor('[INFO] GPS streaming started.')
         else:
@@ -247,7 +264,8 @@ class GpsTabview(QWidget):
         # self.is_manual_update_flag = 0
         if self.gps_handler != None:
             if self.gps_handler.isRunning():
-                self.gps_handler.terminate()
+                # self.gps_handler.terminate()
+                self.gps_handler.streaming_flag = False
                 try:
                     self.gps_handler.gps_trigger.disconnect()  # prevent update after termination.
                 except TypeError:
@@ -262,23 +280,29 @@ class GpsTabview(QWidget):
     @pyqtSlot(name='FETCH_DATA_FROM_GPS')
     def gps_finished_one_update(self):
 
-        self.gps_live_data = self.gps_handler.gps_info_dict.copy()
-        if self.gps_live_data['Latitude Deg'] != 'N/A' and self.gps_live_data['Longitude Deg'] != 'N/A':
+        gps_live_data = self.gps_handler.gps_info_dict.copy()
+
+        if gps_live_data['Latitude Deg'] != 'N/A' and gps_live_data['Longitude Deg'] != 'N/A':
             # This is a valid point
-            print('[INFO] New point\tLat: {0}, Long: {1}'.format(self.gps_live_data['Latitude Deg'],
-                                                          self.gps_live_data['Longitude Deg']))
-            long = self.gps_live_data['Latitude Deg']
-            lat = self.gps_live_data['Longitude Deg']
+            if self.display_log_control_counter % 5 == 0:
+                print('[INFO] New points. Lat: {0}, Long: {1}'.format(gps_live_data['Latitude Deg'],
+                                                              gps_live_data['Longitude Deg']))
+            long = gps_live_data['Latitude Deg']
+            lat = gps_live_data['Longitude Deg']
             # FIXME: gps file IO bookmark
             self.file_io.write_gps_points([time.time(), lat, long])
             self.refresh_map(lat, long)
+            self.get_loss_counter = 0
+        else:
+            self.get_loss_counter += 1
 
-        self.lat_raw_ted.setText(self.gps_live_data['Latitude Raw'])
-        self.lat_decimal_ted.setText(self.gps_live_data['Latitude Deg'])
-        self.lat_dms_ted.setText(self.gps_live_data['Latitude'])
-        self.lon_raw_ted.setText(self.gps_live_data['Longitude Raw'])
-        self.lon_decimal_ted.setText(self.gps_live_data['Longitude Deg'])
-        self.long_dms_ted.setText(self.gps_live_data['Longitude'])
+        if gps_live_data['Latitude Deg'] != 'N/A' or self.get_loss_counter >= 5:
+            self.lat_raw_ted.setText(gps_live_data['Latitude Raw'])
+            self.lat_decimal_ted.setText(gps_live_data['Latitude Deg'])
+            self.lat_dms_ted.setText(gps_live_data['Latitude'])
+            self.lon_raw_ted.setText(gps_live_data['Longitude Raw'])
+            self.lon_decimal_ted.setText(gps_live_data['Longitude Deg'])
+            self.long_dms_ted.setText(gps_live_data['Longitude'])
 
     def append_text_to_gps_monitor(self, msg):
         time_stamp = time.strftime('%H:%M:%S', time.localtime(time.time()))

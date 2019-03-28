@@ -21,6 +21,7 @@ class CurrentLivePlotter(QWidget):
         self.file_data = []
         self.data = []
         self.time_data = []
+
         self.idx = 0
         self.groupbox_stylesheet = 'QGroupBox {font-size: 16px;' \
                                    'font-weight: bold;} ' \
@@ -42,6 +43,7 @@ class CurrentLivePlotter(QWidget):
         power_main_layout.setStretchFactor(self.contral_panel, 1)
         self.setLayout(power_main_layout)
         self.init_plot()
+        self.power_monitor = None
         # self.run()
 
     def add_item2Layouts(self):
@@ -62,9 +64,9 @@ class CurrentLivePlotter(QWidget):
         control_btn_layout = QVBoxLayout()
 
         self.Start_btn = QPushButton('Start Monitor')
-        self.Start_btn.clicked.connect(self.Start_Monitor)
+        self.Start_btn.clicked.connect(self.start_monitor)
         self.Stop_btn = QPushButton('Stop Monitor')
-        self.Stop_btn.clicked.connect(self.Stop_Monitor)
+        self.Stop_btn.clicked.connect(self.stop_monitor)
         self.usb_cb = QCheckBox('Show Current')
         self.usb_cb.setChecked(True)
         self.volt_cb = QCheckBox('Show Voltage')
@@ -103,28 +105,35 @@ class CurrentLivePlotter(QWidget):
     def update_data(self):
 
         line = self.live_file.readline()
-        if line:
-            # print(line)
-            if line != '':
-                self.temp_data = float(line)
-            self.data.append(self.temp_data)
-            # self.p.setPos(self.idx-1000,self.idx+1000)
-            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
-            self.p.setData(self.data)
-            self.usb_panel.display(self.temp_data)
-            self.idx += 1
-        else:
-            self.data.append(self.temp_data)
-            # self.p.setPos(self.idx - 1000, self.idx + 1000)
-            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
-            self.p.setData(self.data)
-            self.usb_panel.display(self.temp_data)
-            self.idx += 1
-        # Write to file.
-        # FIXME: File IO bookmark
-        self.file_io.write_power_monitor_current([time.time(), self.temp_data])
 
-    def Start_Monitor(self):
+        if line and line != '':
+            self.temp_data = float(line)
+
+            if len(self.data) > 5000:
+                self.data[:-1] = self.data[1:]  # shift data left
+                self.data[-1] = self.temp_data
+                self.time_data[:-1] = self.time_data[1:]
+                self.time_data[-1] = self.idx
+
+            else:
+                self.data.append(self.temp_data)
+                self.time_data.append(self.idx)
+        
+            self.idx += 1
+
+
+            # self.p.setPos(self.idx-1000,self.idx+1000)
+            # self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
+            self.p.setData(x=self.time_data , y=self.data)
+            #self.p.setPos(self.idx, 0)
+            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
+            self.usb_panel.display(self.temp_data)
+
+            # Write to file.
+            # FIXME: File IO bookmark
+            self.file_io.write_power_monitor_current([time.time(), self.temp_data])
+
+    def start_monitor(self):
         if self.flag == 1:
             time.sleep(2)
             self.timer.start(0.001)
@@ -133,12 +142,15 @@ class CurrentLivePlotter(QWidget):
             self.timer.timeout.connect(lambda: self.update_data())
             ### start a new thread for power_monitor to sample
             self.t_monitor = multiprocessing.Process(target=PowerMonitorHandler)
+            self.t_monitor.daemon = True
             self.t_monitor.start()
-            ###live animation process wait 3 seconds to plot the curve
+            #self.power_monitor = PowerMonitorHandler()
+            ##live animation process wait 3 seconds to plot the curve
             time.sleep(2)
-            self.timer.start(0.001)
+            self.timer.start(0.0001)
 
-    def Stop_Monitor(self):
+    def stop_monitor(self):
         self.timer.stop()
+        #self.power_monitor = None
         self.flag = 1
         # self.t_monitor.terminate()
