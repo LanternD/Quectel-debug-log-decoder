@@ -14,7 +14,7 @@ class CurrentLivePlotter(QWidget):
     def __init__(self, file_io, parent=None):
 
         super(CurrentLivePlotter, self).__init__(parent)
-        self.flag = 0
+        self.is_start = True
         self.file_io = file_io
         self.live_file = open('./CurrentPlottingModule/usb_live.txt', 'r')
         self.temp_data = 0
@@ -102,54 +102,37 @@ class CurrentLivePlotter(QWidget):
         # pg.mkPen('w', width=100, style=QtCore.Qt.DashLine)
         self.w1.setBackground(QColor(10, 50, 80))
 
-    def update_data(self):
-
-        line = self.live_file.readline()
-
-        if line and line != '':
-            self.temp_data = float(line)
-
-        if len(self.data) > 5000:
-            self.data[:-1] = self.data[1:]  # shift data left
-            self.data[-1] = self.temp_data
-            self.time_data[:-1] = self.time_data[1:]
-            self.time_data[-1] = self.idx
-
-        else:
-            self.data.append(self.temp_data)
-            self.time_data.append(self.idx)
-
-        self.idx += 1
-
-
-        # self.p.setPos(self.idx-1000,self.idx+1000)
-        # self.w1.setRange(xRange=[self.idx - 2000, self.idx + 300])
-        self.p.setData(x=self.time_data , y=self.data)
-        #self.p.setPos(self.idx, 0)
-        self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
-        self.usb_panel.display(self.temp_data)
-
-        # Write to file.
-        # FIXME: File IO bookmark
-        self.file_io.write_power_monitor_current([time.time(), self.temp_data])
+    def update_data(self,sample):
+        if  sample and self.is_start:
+            self.temp_data = sample
+            if len(self.data) > 5000:
+                self.data[:-1] = self.data[1:]  # shift data left
+                self.data[-1] = self.temp_data
+                self.time_data[:-1] = self.time_data[1:]
+                self.time_data[-1] = self.idx
+            else:
+                self.data.append(self.temp_data)
+                self.time_data.append(self.idx)
+            self.p.setData(x=self.time_data , y=self.data)
+            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
+            self.usb_panel.display(self.temp_data)
+            # Write to file.
+            # FIXME: File IO bookmark
+            self.file_io.write_power_monitor_current([time.time(), '{0:.4f}'.format(self.temp_data)])
+            self.idx += 1
 
     def start_monitor(self):
-        if self.flag == 1:
-            time.sleep(2)
-            self.timer.start(5)
+        self.Start_btn.setDisabled(True)
+        self.Stop_btn.setEnabled(True)
+        if self.is_start == False:
+            self.is_start = True
         else:
-            self.timer = pg.QtCore.QTimer()
-            self.timer.timeout.connect(lambda: self.update_data())
-            ### start a new thread for power_monitor to sample
-            self.t_monitor = multiprocessing.Process(target=PowerMonitorHandler)
-            self.t_monitor.daemon = True
-            self.t_monitor.start()
-            #self.power_monitor = PowerMonitorHandler()
-            ##live animation process wait 3 seconds to plot the curve
-            time.sleep(2)
-            self.timer.start(5)
+            self.power_monitor = PowerMonitorHandler()
+            self.power_monitor.samp_trigger.connect(self.update_data)
+            self.power_monitor.start()
+
 
     def stop_monitor(self):
-        self.timer.stop()
-        self.flag = 1
-        # self.t_monitor.terminate()
+        self.is_start = False
+        self.Stop_btn.setDisabled(True)
+        self.Start_btn.setEnabled(True)
