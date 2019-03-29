@@ -546,6 +546,15 @@ class LogDecoderTabview(QWidget):
         self.select_key_log_btn = QPushButton('Select Key Log to Display')
         self.select_key_log_btn.clicked.connect(self.btn_fn_select_key_log)
 
+        current_ecl_lb = QLabel('Current ECL')
+        self.current_ecl_lb_ted = QLineEdit()  # show current ecl
+        self.ecl_update_timer = QTimer()
+        self.ecl_update_timer.timeout.connect(self.timer_fn_update_current_ecl)
+
+        ecl_h_layout = QHBoxLayout()
+        ecl_h_layout.addWidget(current_ecl_lb)
+        ecl_h_layout.addWidget(self.current_ecl_lb_ted)
+
         self.key_log_monitor = QPlainTextEdit()
         self.key_log_monitor.setFont(QFont('Source Code Pro', 10))
         self.key_log_monitor.setPlaceholderText('List the selected key logs in time order.')
@@ -560,6 +569,7 @@ class LogDecoderTabview(QWidget):
             key_info_v_layout.addWidget(self.pause_and_resume_lm_btn)
 
         # key_info_v_layout.addWidget(key_log_lb)  # this is a duplicate label
+        key_info_v_layout.addLayout(ecl_h_layout)
         key_info_v_layout.addWidget(self.select_key_log_btn)
         key_info_v_layout.addWidget(self.key_log_monitor)
         key_info_v_layout.addWidget(self.clear_key_log_btn)
@@ -636,6 +646,9 @@ class LogDecoderTabview(QWidget):
             # Create files to write
             self.file_io.reset_handler()
 
+            # start update ecl timer
+            self.ecl_update_timer.start(1000)
+
             # Create UE AT handler
             self.ue_serial_handler()
             self.dbg_serial_handler()
@@ -654,6 +667,9 @@ class LogDecoderTabview(QWidget):
             self.append_sys_log('Uplink test is terminated.')
             while self.ul_mes_thread.isRunning():
                 continue  # wait until it is over. Note that this might block the main view.
+
+        # ECL update stop
+        self.ecl_update_timer.stop()
 
         # TODO: add the close downlink test code if downlink measurement is enabled.
         # Close the device handlers
@@ -1330,3 +1346,6 @@ class LogDecoderTabview(QWidget):
         # print(msg)
         return msg
 
+    @pyqtSlot(name='UPDATE_ECL')
+    def timer_fn_update_current_ecl(self):
+        self.current_ecl_lb_ted.setText(self.decoder.current_ecl)

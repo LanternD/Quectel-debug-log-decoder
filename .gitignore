@@ -108,3 +108,4 @@ log_files/
 deprecated/
 
 config.json
+CurrentPlottingModule/usb_live.txt

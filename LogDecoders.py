@@ -491,6 +491,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         # Transfer the incoming signal measurement to main thread.
         self.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}
         self.npusch_power_buf = ['', '', '', '', '']  # ts, type, power db, repetition, iru number
+        self.current_ecl = '-1'
 
         self.live_measurement_buf = {'ECL': -1, 'CSQ': -1, 'RSRP': -1, 'SNR': -1, 'Cell ID': -1,
                                      'Current state': -1,
@@ -842,7 +843,20 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         if len(complete_log_list) < 6:
             return  # invalid packets
         npusch_msg = ['LL1_PUSCH_CALC_TX_POWER', 'LL1_DCI_FORMAT_N0', 'LL1_DCI_FORMAT_N1_NORMAL', 'LL1_RAR_UL_GRANT']
+        ecl_msg_name = 'LL1_LOG_ECL_INFO'
+
         msg_name = complete_log_list[4]
+        if msg_name == ecl_msg_name:
+            ecl = complete_log_list[-1]['current_ecl']
+            reason = complete_log_list[-1]['ecl_selected_by']
+            # print(reason)
+            if reason == '3(LL1_RACH_ECL_SELECTED_NEXT_COVERAGE_LEVEL)':
+                reason = '(next)'
+            elif reason == '2(LL1_RACH_ECL_SELECTED_BY_MEASUREMENT)':
+                reason = '(measure)'
+            else:
+                reason = '(unknown)'
+            self.current_ecl = '{0} {1}'.format(ecl, reason)
 
         if msg_name not in npusch_msg:
             return  # save computation resource
@@ -866,7 +880,6 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 print('[ERROR] Wrong place. Payload:', msg_payload)
 
             self.update_npusch_power_trigger.emit()
-
 
 
 

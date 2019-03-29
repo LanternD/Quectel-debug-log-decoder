@@ -136,7 +136,7 @@ class CurrentLivePlotter(QWidget):
     def start_monitor(self):
         if self.flag == 1:
             time.sleep(2)
-            self.timer.start(0.0001)
+            self.timer.start(5)
         else:
             self.timer = pg.QtCore.QTimer()
             self.timer.timeout.connect(lambda: self.update_data())
@@ -147,7 +147,7 @@ class CurrentLivePlotter(QWidget):
             #self.power_monitor = PowerMonitorHandler()
             ##live animation process wait 3 seconds to plot the curve
             time.sleep(2)
-            self.timer.start(0.0001)
+            self.timer.start(5)
 
     def stop_monitor(self):
         self.timer.stop()
