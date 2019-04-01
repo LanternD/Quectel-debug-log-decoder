@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 from PyQt5.QtCore import *
 import os
+import random
 import time
 from DeviceHandlers import UeAtParser
 import csv
@@ -14,7 +15,7 @@ class UplinkMeasurement(QThread):
         self.intermediate_output = {'System log list': [], 'Sent notice': '',
                                     'AT result': ''}
 
-        self.test_string = ''
+        self.test_string = 256 * 'FF'  # default test string
 
         self.config = config
         self.ue_handler = ue_handler
@@ -22,14 +23,14 @@ class UplinkMeasurement(QThread):
         self.packet_num = self.config['UL packet num']
         self.delay_ms = self.config['UL packet delay']
 
-        if self.file_hanlder() == 0:
+        if self.file_handler() == 0:
             print('Run UL test with the default buffer.')
 
         self.run_flag = True
 
     def run(self):
         self.run_flag = True
-
+        random_data = random.randint(100, 999)  # every time the random number is different to differentiate tests.
         history = []
         count = 0
         if self.config['UDP local socket'] == 'X':  # change to True to enable.
@@ -43,8 +44,9 @@ class UplinkMeasurement(QThread):
             print(self.fetch_packet_text(count))
             # add a header to each package
             count += 1
-            packet = '//Package index: {0:4d}//'.format(count)
-            packet += self.test_string[0:self.packet_length - 23]  # 23 is the header length
+            # packet = '//Package index: {0:4d}//'.format(count)
+            packet = '{0:03d}/{1:03d}/{2:03d}/'.format(count, self.packet_num, random_data)
+            packet += self.test_string[0:self.packet_length - 12]  # 12 is the header length
             # print(len(packet))
             packet2msg = packet.encode('utf-8').hex()  # type: str
             # print(len(packet2msg))
@@ -54,9 +56,9 @@ class UplinkMeasurement(QThread):
                                                                         len(packet2msg) // 2,
                                                                         packet2msg))
             self.intermediate_output['System log list'].append(
-                'Packet sent: {0:3d}/{1:3d}'.format(count, self.packet_num))
+                'Packet sent: {0:03d}/{1:03d}'.format(count, self.packet_num))
 
-            print('Packet count:', count, '/', self.packet_num)
+            print('[INFO] Packet count: {0:3d}/{1:3d}'.format(count, self.packet_num))
             new_msg, msg_list = self.ue_handler.at_read()
             self.intermediate_output['AT result'] += new_msg
             self.ul_trigger.emit()
@@ -74,7 +76,7 @@ class UplinkMeasurement(QThread):
         self.intermediate_output['System log list'].append('Result overview: {0}'.format(res_str))
         self.intermediate_output['System log list'].append('ULT: uplink test finished.\n')
 
-    def file_hanlder(self):
+    def file_handler(self):
         # Read the file from folder as buffer.
         test_file_path = './assets/Lorem Ipsum.txt'
         if os.path.exists(test_file_path):

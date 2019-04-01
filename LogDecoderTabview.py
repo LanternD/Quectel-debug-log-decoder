@@ -63,7 +63,8 @@ class LogDecoderTabview(QWidget):
 
         # Find available serial devices.
         available_serials = list_serial_ports()
-        print('[INFO] Available serial ports:', available_serials)
+
+        # print('[INFO] Available serial ports:', available_serials)
 
         # Initialize the config editor
         self.config_editor_dlg = ConfigurationEditor()
@@ -123,6 +124,15 @@ class LogDecoderTabview(QWidget):
 
         # Load config or setup in the first run.
         self.load_config_from_json()
+
+        # 20190401 updated: add a new way to display serial ports.
+        import serial.tools.list_ports
+        ss = serial.tools.list_ports.comports()
+        self.append_sys_log('Port choices:')
+        for x in ss:
+            serial_msg = '[INFO] Serial port: {0}'.format(x)
+            print(serial_msg)
+            self.append_sys_log('  - {0}'.format(x))
 
     # Create handlers
     def ue_serial_handler(self):
@@ -308,15 +318,15 @@ class LogDecoderTabview(QWidget):
         self.config_update_btn_gbox.setStyleSheet(self.groupbox_stylesheet)
         self.config_update_btn_gbox.setMinimumWidth(250)
 
-        open_config_editor_btn = QPushButton('Update Configuration')
-        open_config_editor_btn.setMinimumWidth(100)
-        open_config_editor_btn.setMinimumHeight(40)
-        open_config_editor_btn.setFont(self.btn_font)
-        open_config_editor_btn.setStyleSheet(self.pb_stylesheet)
-        open_config_editor_btn.clicked.connect(self.btn_fn_open_config_editor_dlg)
+        self.open_config_editor_btn = QPushButton('Update Configuration')
+        self.open_config_editor_btn.setMinimumWidth(100)
+        self.open_config_editor_btn.setMinimumHeight(40)
+        self.open_config_editor_btn.setFont(self.btn_font)
+        self.open_config_editor_btn.setStyleSheet(self.pb_stylesheet)
+        self.open_config_editor_btn.clicked.connect(self.btn_fn_open_config_editor_dlg)
 
         config_v_layout = QVBoxLayout()
-        config_v_layout.addWidget(open_config_editor_btn)
+        config_v_layout.addWidget(self.open_config_editor_btn)
 
         self.config_update_btn_gbox.setLayout(config_v_layout)
 
@@ -518,12 +528,14 @@ class LogDecoderTabview(QWidget):
         self.start_btn.setStyleSheet(self.pb_stylesheet)
         self.start_btn.setMinimumWidth(80)
         self.start_btn.setMinimumHeight(50)
+        self.start_btn.setShortcut(QKeySequence('Ctrl+n'))
 
         self.stop_btn = QPushButton('Stop')
         self.stop_btn.setFont(self.btn_font)
         self.stop_btn.setStyleSheet(self.pb_stylesheet)
         self.stop_btn.setMinimumWidth(80)
         self.stop_btn.setMinimumHeight(50)
+        self.stop_btn.setShortcut(QKeySequence('Ctrl+x'))
 
         self.start_btn.clicked.connect(self.btn_fn_start)
         self.stop_btn.clicked.connect(self.btn_fn_stop)
@@ -1104,10 +1116,10 @@ class LogDecoderTabview(QWidget):
                                        '"messages_YourDeviceName.xml" and put it '
                                        'in the "decoders" folder.\n'
                                        'If you are using devices other than BC95 and BC28, please update '
-                                       'the DebugLogDecoder init() function in "log_decoder.py."')
+                                       'the DebugLogDecoder init() function in "LogDecoder.py."')
         self.at_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
-        self.dbg_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.')
-
+        self.dbg_port_cbb.setToolTip('Make sure the port is correct, otherwise the program will crash.\n'
+                                     'The debug port baudrate is 921600 by default.')
         self.filter_no_rb.setToolTip('No filter, everything is logged.')
         self.filter_in_rb.setToolTip('Keep only the messages with EXACT names in the filter. Others are discarded.')
         self.filter_out_rb.setToolTip('Discard the unwanted logs in the filter. \n'
@@ -1115,9 +1127,12 @@ class LogDecoderTabview(QWidget):
                                       'on the right to export the not-showing logs to file.')
         self.filter_input.setToolTip('Separate multiple message names by comma ",".')
 
-        self.start_btn.setToolTip('Create AT and debug serial handler and start recording the logs.\n'
-                                  'Every time you start will generate a new log file.')
-        self.stop_btn.setToolTip('Stop the logging, delete the serial handlers.')
+        self.open_config_editor_btn.setToolTip('Open the configuration editor dialog.')
+        self.start_btn.setToolTip('Create AT and debug serial handler, file handlers, and '
+                                  'start recording the logs. (CTRL+N)\n'
+                                  'Every time you start will generate a batch of new log files.\n'
+                                  'Note: if you want to have perfect file timeline alignment, start power and GPS streaming first.')
+        self.stop_btn.setToolTip('Stop the logging, delete the serial and file handlers. (CTRL+X)')
         self.at_command_input_1.setToolTip(
             'You can also press Enter to send the command. The three input fields are equivalent')
         self.create_socket_btn.setToolTip('Only works when no socket exists.')

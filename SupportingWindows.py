@@ -8,21 +8,20 @@ from utils import YouAreSoQ
 
 
 VERSION = '0.4 Alpha'
-LAST_UPDATE = '2019.03.25'
+LAST_UPDATE = '2019.04.01'
 
 
 class AboutMessageBox(QDialog):
 
     def __init__(self, parent=None):
         super(AboutMessageBox, self).__init__(parent)
-        self.title = 'About Quectel UE Debug Log Assistant'
+        self.title = 'About Quectel UE Debug Log Analyzer'
         self.left = 400
         self.top = 400
-        self.width = 450
+        self.width = 560
         self.height = 280
 
         self.initUI()
-        self.add_tool_tips_dlg()
 
     def initUI(self):
         self.setWindowIcon(QIcon('./assets/about.png'))
@@ -31,17 +30,18 @@ class AboutMessageBox(QDialog):
                          self.width, self.height)
         self.setFixedSize(self.width, self.height)
 
-        info_label = QLabel('NB-IOT Quectel UE Debug Log Assistant', self)
-        info_label.move(70, 50)
+        info_label = QLabel('Quectel UE Debug Log Analyzer\n'
+                            '  - A software we build for the NB-IoT field test.', self)
+        info_label.move(50, 50)
 
         author_label = QLabel('Developer: \tDeliang Yang (LanternD), Xianghui Zhang, Liqian Shen', self)
-        author_label.move(70, 90)
+        author_label.move(50, 110)
 
         version_label = QLabel('Version: \t' + VERSION, self)
-        version_label.move(70, 130)
+        version_label.move(50, 150)
 
         update_date_label = QLabel('Last update: \t' + LAST_UPDATE, self)
-        update_date_label.move(70, 170)
+        update_date_label.move(50, 190)
 
 
 class ConfigurationEditor(QDialog):
@@ -56,7 +56,7 @@ class ConfigurationEditor(QDialog):
         self.btn_font = g_q_style.large_btn_font
 
         self.initUI()
-
+        self.add_tool_tips_dlg()
 
     def initUI(self):
         self.setWindowTitle('Configuration Editor')
@@ -248,14 +248,16 @@ class ConfigurationEditor(QDialog):
     def add_tool_tips_dlg(self):
 
         self.keep_filtered_log_cb.setToolTip(
-            'If checked, everything is saved, otherwise the filtered-out logs are discarded.')
+            'If checked, all DECODED logs are saved, otherwise the filtered-out logs are discarded.')
         self.time_format_input.setToolTip('Tips: \n%y, %m, %d: year/month/date in two digits.\n'
-                                                            '%H, %M, %S: hour/minute/second in two digits\n'
-                                                            'For more info, check http://strftime.org/')
+                                          '%H, %M, %S: hour/minute/second in two digits\n'
+                                          'For more info, check http://strftime.org/')
         self.export_decoded_cb.setToolTip('Whether to save decoded logs.')
-        self.export_raw_cb.setToolTip('Raw HEX log is in .txt format. No log will be discarded.')
+        self.export_raw_cb.setToolTip('Raw HEX log is in \'.txt\' format. Filters will not be applied to raw log.\n'
+                                      'Note: the raw log can be converted to UEMonitor compatible format.\n'
+                                      '(Check \'RawLogFormatConvertor.py\' for more info.')
         self.disp_simplified_log_cb.setToolTip(
-            'If checked, the details of the log is not displayed. This option will not'
+            'Do not display the decoded details of the log. This option will not '
             'change the exported log.')
 
     @pyqtSlot()

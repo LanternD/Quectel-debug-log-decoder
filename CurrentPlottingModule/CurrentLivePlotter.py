@@ -44,6 +44,9 @@ class CurrentLivePlotter(QWidget):
         power_main_layout.addWidget(self.contral_panel)
         power_main_layout.setStretchFactor(self.contral_panel, 1)
         self.setLayout(power_main_layout)
+
+        self.add_tool_tips_pwr()
+
         self.init_plot()
         self.power_monitor = None
         # self.run()
@@ -65,10 +68,15 @@ class CurrentLivePlotter(QWidget):
         control_btn_box.setStyleSheet(self.groupbox_stylesheet)
         control_btn_layout = QVBoxLayout()
 
-        self.Start_btn = QPushButton('Start Monitor')
-        self.Start_btn.clicked.connect(self.start_monitor)
-        self.Stop_btn = QPushButton('Stop Monitor')
-        self.Stop_btn.clicked.connect(self.stop_monitor)
+        self.start_btn = QPushButton('Start Monitor')
+        self.start_btn.clicked.connect(self.start_monitor)
+        self.start_btn.setShortcut(QKeySequence('Ctrl+n'))
+
+        self.stop_btn = QPushButton('Stop Monitor')
+        self.stop_btn.clicked.connect(self.stop_monitor)
+        self.stop_btn.setShortcut(QKeySequence('Ctrl+x'))
+        self.stop_btn.setDisabled(True)
+
         self.usb_cb = QCheckBox('Show Current')
         self.usb_cb.setChecked(True)
         self.volt_cb = QCheckBox('Show Voltage')
@@ -84,13 +92,21 @@ class CurrentLivePlotter(QWidget):
 
         control_btn_layout.addWidget(self.usb_cb)
         control_btn_layout.addWidget(self.volt_cb)
-        control_btn_layout.addWidget(self.Start_btn)
-        control_btn_layout.addWidget(self.Stop_btn)
+        control_btn_layout.addWidget(self.start_btn)
+        control_btn_layout.addWidget(self.stop_btn)
 
         self.Layout2.addLayout(result_show_layout)
         self.Layout2.setStretchFactor(result_show_layout, 10)
         self.Layout2.addWidget(control_btn_box)
         self.Layout2.setStretchFactor(control_btn_box, 1)
+
+    def add_tool_tips_pwr(self):
+        self.start_btn.setToolTip('Start current sampling (CTRL+N).\nMake sure the power monitor '
+                                  'is plugged in. Otherwise the program will crash.')
+        self.stop_btn.setToolTip('Stop current sampling (CTRL+X)\nNote that the power monitor'
+                                 ' is still running in the background. We just stop file IO '
+                                 'and plot updating.')
+
 
     def init_plot(self):
         ###plot the animation for data
@@ -125,8 +141,8 @@ class CurrentLivePlotter(QWidget):
         #     self.idx += 1
 
     def start_monitor(self):
-        self.Start_btn.setDisabled(True)
-        self.Stop_btn.setEnabled(True)
+        self.start_btn.setDisabled(True)
+        self.stop_btn.setEnabled(True)
         if self.power_monitor == None:
             self.power_monitor = PowerMonitorHandler(self.p, self.w1, self.file_io, self.usb_panel)
         if self.power_monitor.is_start == False:
@@ -138,5 +154,5 @@ class CurrentLivePlotter(QWidget):
     def stop_monitor(self):
         #self.power_monitor.engine.monsoon.stopSampling()
         self.power_monitor.is_start = False
-        self.Stop_btn.setDisabled(True)
-        self.Start_btn.setEnabled(True)
+        self.stop_btn.setDisabled(True)
+        self.start_btn.setEnabled(True)

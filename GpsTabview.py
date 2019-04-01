@@ -129,11 +129,14 @@ class GpsTabview(QWidget):
         self.gps_baud_cmb.addItems(baud_options_str)
         self.gps_baud_cmb.setCurrentIndex(baud_options_str.index('9600'))
 
-        self.stop_gps_update_btn = QPushButton('Stop Update')
-        self.stop_gps_update_btn.clicked.connect(self.btn_fn_stop_auto_update)
-
         self.start_gps_update_btn = QPushButton('Start Update')
         self.start_gps_update_btn.clicked.connect(self.btn_fn_start_map_update)
+        self.start_gps_update_btn.setShortcut(QKeySequence('Ctrl+n'))
+
+        self.stop_gps_update_btn = QPushButton('Stop Update')
+        self.stop_gps_update_btn.clicked.connect(self.btn_fn_stop_auto_update)
+        self.stop_gps_update_btn.setShortcut(QKeySequence('Ctrl+x'))
+        self.stop_gps_update_btn.setDisabled(True)
 
         self.auto_update_cb = QCheckBox('Auto Update')
         self.auto_update_cb.setChecked(True)
@@ -184,15 +187,15 @@ class GpsTabview(QWidget):
 
         self.setLayout(gps_main_layout)
 
-        self.add_tool_tips()
+        self.add_tool_tips_gps()
 
-    def add_tool_tips(self):
-        self.start_gps_update_btn.setToolTip('If you want to save points to file, Click \'Start\' in '
+    def add_tool_tips_gps(self):
+        self.start_gps_update_btn.setToolTip('Start GPS streaming. (CTRL+N)\nIf you want to save points to file, Click \'Start\' in '
                                              'Log Decoder tab first. \nThe settings in this tab will '
                                              'not be added to the config.json.')
         self.auto_update_cb.setToolTip('If auto update is disabled, you need to manually click'
                                        ' \'Start Update\' to add one point.')
-        self.stop_gps_update_btn.setToolTip('The GPS streaming is disabled. No more points will be added.')
+        self.stop_gps_update_btn.setToolTip('Stop GPS streaming (CTRL+X).\nNo more points will be added.')
 
     def refresh_map(self, lat, long):
         lat = str(float(lat[:-2]) + 0.011731)  # add a bias to make the map accurate
@@ -249,6 +252,8 @@ class GpsTabview(QWidget):
         # print('Auto update chosen:', is_auto_update_chosen)
         if is_auto_update_chosen:
             self.gps_handler.gps_trigger.connect(self.gps_finished_one_update)
+            self.start_gps_update_btn.setDisabled(True)
+            self.stop_gps_update_btn.setEnabled(True)
         else:
             # Manual update
             try:
@@ -276,6 +281,8 @@ class GpsTabview(QWidget):
                 self.append_text_to_gps_monitor('[INFO] There is nothing to stop.')
         else:
             self.append_text_to_gps_monitor('[INFO] GPS is not enabled.')
+        self.stop_gps_update_btn.setDisabled(True)
+        self.start_gps_update_btn.setEnabled(True)
 
     @pyqtSlot(name='FETCH_DATA_FROM_GPS')
     def gps_finished_one_update(self):

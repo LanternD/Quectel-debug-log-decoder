@@ -114,10 +114,12 @@ class DebugLogDecoder(QThread):
         for b_ascii in byte_list:
             if b_ascii != '00' or int(b_ascii, 16) < 127:
                 byte_str += b_ascii
+        # TODO: find a better way to prevent the decode error.
         try:
             return bytearray.fromhex(byte_str).decode()
         except UnicodeDecodeError:
             return ''
+
     def parse_one_msg_common(self, data_flow):
         result_list = []
         if len(data_flow) < 8:
