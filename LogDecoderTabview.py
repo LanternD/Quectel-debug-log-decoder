@@ -594,6 +594,7 @@ class LogDecoderTabview(QWidget):
         rsrp_snr_layout = QVBoxLayout()
         self.rsrp_win = pg.PlotWidget()
         self.snr_win = pg.PlotWidget()
+
         self.init_rsrp_snr_plot()
 
         rsrp_snr_layout.addWidget(self.rsrp_win)
@@ -1125,7 +1126,7 @@ class LogDecoderTabview(QWidget):
                                           'unless start the logging again.')
 
         # The following tooltips are for elements in ConfigurationEditor
-        self.config_editor_dlg.add_tool_tips_dlg()
+        # self.config_editor_dlg.add_tool_tips_dlg()
 
     # Multithread signal processing
     # # Fetch updated configs from Configuration Editor
@@ -1194,15 +1195,23 @@ class LogDecoderTabview(QWidget):
 
         # print(measurement_dict)
         self.decoder.rsrp_snr_buf = {'ts': [], 'RSRP': [], 'SNR': []}  # reset the buf
-        self.samptime += [x - self.decoder.start_timestamp for x in measurement_dict['ts']]
-        self.rsrp_data += [float(x)/10 for x in measurement_dict['RSRP']]
-        self.snr_data += [float(x)/10 for x in measurement_dict['SNR']]
+        #self.samptime += [x - self.decoder.start_timestamp for x in measurement_dict['ts']]
+        if measurement_dict['ts'] == []:
+            return
+        else:
+            if -1500 < float(measurement_dict['RSRP'][0]) < 0 and  -200 < float(measurement_dict['SNR'][0]) < 250:
+                self.samptime.append(measurement_dict['ts'][0] - self.decoder.start_timestamp)
+                self.rsrp_data.append(float(measurement_dict['RSRP'][0])/10)
+                self.snr_data .append(float(measurement_dict['SNR'][0]) / 10)
+            else:
+                return
+            # self.rsrp_data += [float(x)/10 for x in measurement_dict['RSRP']]
+            # self.snr_data += [float(x)/10 for x in measurement_dict['SNR']]
+            # FIXME: RSRP SNR writer.
+            self.file_io.write_rsrp_snr([measurement_dict['ts'][0], int(measurement_dict['RSRP'][0]),
+                                         int(measurement_dict['SNR'][0])])
 
-        # FIXME: RSRP SNR writer.
-        self.file_io.write_rsrp_snr([measurement_dict['ts'], measurement_dict['RSRP'],
-                                     measurement_dict['SNR']])
-
-        self.update_rsrp_snr_plot()
+            self.update_rsrp_snr_plot()
 
     def update_rsrp_snr_plot(self):
         # self.prt += 2

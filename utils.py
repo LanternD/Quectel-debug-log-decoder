@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 import sys
 import glob
+import os
 import serial
 from PyQt5.QtGui import *
 
@@ -42,6 +43,7 @@ def string_to_list(input_str):
     else:
         return [input_str]
 
+
 def list_to_string(input_list):
     if len(input_list) == 0:
         return ''
@@ -53,6 +55,15 @@ def list_to_string(input_list):
         ret_str += input_list[i] + ', '
     ret_str += input_list[-1]
     return ret_str
+
+
+def get_file_list(file_path):
+
+    files = []
+    for root, dirs, files in os.walk(file_path):
+        print('# of files: {0}'.format(len(files)))
+    file_list = files
+    return file_list
 
 
 class YouAreSoQ(object):

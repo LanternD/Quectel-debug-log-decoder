@@ -1,5 +1,8 @@
 import multiprocessing
 import time
+import Monsoon.HVPM as HVPM
+import Monsoon.sampleEngine as sampleEngine
+import Monsoon.Operations as op
 from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QLinearGradient, QColor, QFont
@@ -21,7 +24,6 @@ class CurrentLivePlotter(QWidget):
         self.file_data = []
         self.data = []
         self.time_data = []
-
         self.idx = 0
         self.groupbox_stylesheet = 'QGroupBox {font-size: 16px;' \
                                    'font-weight: bold;} ' \
@@ -102,37 +104,39 @@ class CurrentLivePlotter(QWidget):
         # pg.mkPen('w', width=100, style=QtCore.Qt.DashLine)
         self.w1.setBackground(QColor(10, 50, 80))
 
-    def update_data(self,sample):
-        if  sample and self.is_start:
-            self.temp_data = sample
-            if len(self.data) > 5000:
-                self.data[:-1] = self.data[1:]  # shift data left
-                self.data[-1] = self.temp_data
-                self.time_data[:-1] = self.time_data[1:]
-                self.time_data[-1] = self.idx
-            else:
-                self.data.append(self.temp_data)
-                self.time_data.append(self.idx)
-            self.p.setData(x=self.time_data , y=self.data)
-            self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
-            self.usb_panel.display(self.temp_data)
-            # Write to file.
-            # FIXME: File IO bookmark
-            self.file_io.write_power_monitor_current([time.time(), '{0:.4f}'.format(self.temp_data)])
-            self.idx += 1
+### Please do not delete this part of codes
+    #def update_data(self, sample):
+        # if sample and self.is_start:
+        #     self.temp_data = sample
+        #     if len(self.data) > 5000:
+        #         self.data[:-1] = self.data[1:]  # shift data left
+        #         self.data[-1] = self.temp_data
+        #         self.time_data[:-1] = self.time_data[1:]
+        #         self.time_data[-1] = self.idx
+        #     else:
+        #         self.data.append(self.temp_data)
+        #         self.time_data.append(self.idx)
+        #     self.p.setData(x=self.time_data , y=self.data)
+        #     self.w1.setRange(xRange=[self.idx - 2000, self.idx + 50])
+        #     self.usb_panel.display(self.temp_data)
+        #     # Write to file.
+        #     # FIXME: File IO bookmark
+        #     self.file_io.write_power_monitor_current([time.time(), '{0:.4f}'.format(self.temp_data)])
+        #     self.idx += 1
 
     def start_monitor(self):
         self.Start_btn.setDisabled(True)
         self.Stop_btn.setEnabled(True)
-        if self.is_start == False:
-            self.is_start = True
+        if self.power_monitor == None:
+            self.power_monitor = PowerMonitorHandler(self.p, self.w1, self.file_io, self.usb_panel)
+        if self.power_monitor.is_start == False:
+            self.power_monitor.is_start = True
+            self.power_monitor.start()
         else:
-            self.power_monitor = PowerMonitorHandler()
-            self.power_monitor.samp_trigger.connect(self.update_data)
             self.power_monitor.start()
 
-
     def stop_monitor(self):
-        self.is_start = False
+        #self.power_monitor.engine.monsoon.stopSampling()
+        self.power_monitor.is_start = False
         self.Stop_btn.setDisabled(True)
         self.Start_btn.setEnabled(True)

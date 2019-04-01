@@ -22,6 +22,7 @@ class AboutMessageBox(QDialog):
         self.height = 280
 
         self.initUI()
+        self.add_tool_tips_dlg()
 
     def initUI(self):
         self.setWindowIcon(QIcon('./assets/about.png'))

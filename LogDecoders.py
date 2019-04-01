@@ -114,8 +114,10 @@ class DebugLogDecoder(QThread):
         for b_ascii in byte_list:
             if b_ascii != '00' or int(b_ascii, 16) < 127:
                 byte_str += b_ascii
-        return bytearray.fromhex(byte_str).decode()
-
+        try:
+            return bytearray.fromhex(byte_str).decode()
+        except UnicodeDecodeError:
+            return ''
     def parse_one_msg_common(self, data_flow):
         result_list = []
         if len(data_flow) < 8:
@@ -542,6 +544,7 @@ class UartOnlineLogDecoder(DebugLogDecoder):
         parsed_msg = ''
         time_stamp = .0
         payload_len = 1
+        max_len = 0
         app_rep_flag = False
 
         empty_msg_list = [0, 0, .0]  # Order: seq_num, timestamp, time tick,
@@ -607,6 +610,13 @@ class UartOnlineLogDecoder(DebugLogDecoder):
                 for i in range(2):
                     str_buf.append(self.read_byte(1))
                 payload_len = self.hex_to_decimal(str_buf)
+                # if max_len < payload_len:
+                #     max_len = payload_len
+                #     print('[INFO]Max payload length:', max_len)
+                if payload_len > 720:
+                    st = states['UNKNOWN']
+                    print('[ERROR] Found unbounded large payload length.')
+                    continue
                 st = states['DATA']
             elif st == states['DATA']:
                 str_buf = []
