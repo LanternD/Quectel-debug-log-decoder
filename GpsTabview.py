@@ -56,9 +56,12 @@ class GpsTabview(QWidget):
 
     def init_map(self):
         import os
-        map_html_path = 'file://' + os.getcwd() + '/assets/baidu_map_interface.html'
-        map_html_path.replace('\\', '/')  # deal with windows paths.
-        print('[INFO] GPS map:' + map_html_path)
+        cwd = os.getcwd()
+        if cwd[0] == '/':
+            cwd = cwd[1:]  # ignore the first char.
+        map_html_path = 'file:///' + cwd + '/assets/baidu_map_interface.html'
+        map_html_path = map_html_path.replace('\\', '/')  # deal with windows paths.
+        print('[INFO] GPS map: ' + map_html_path)
         # map_html_path = 'http://www.qt.io/'
         self.map_viewer.load(QUrl(map_html_path))
 

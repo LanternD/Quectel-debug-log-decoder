@@ -4,6 +4,7 @@ from LogDecoderTabview import LogDecoderTabview
 from CurrentPlottingModule.CurrentLivePlotter import CurrentLivePlotter
 from GpsTabview import GpsTabview
 from FileIOHandler import FileIOHandler
+from PyQt5.QtGui import *
 
 
 class MainWindowTabview(QWidget):
@@ -45,6 +46,7 @@ class MainWindowTabview(QWidget):
         tabs = QTabWidget()
         tabs.resize(300, 200)
 
+        tab1, tab2, tab3 = None, None, None
 
         tab1 = QWidget()
         # Create debug_log tab

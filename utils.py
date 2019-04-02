@@ -69,15 +69,22 @@ def get_file_list(file_path):
 class YouAreSoQ(object):
 
     def __init__(self):
-        # put the unified style control elements here.
-        self.lb_font = QFont("Helvetica", 10)
+        # put the unified style control elements here.        
+        if sys.platform.lower() == 'linux':
+            self.lb_font = QFont('Helvetica', 10)
+            self.middle_lb_font = QFont('Helvetica', 12)
+            self.large_lb_font = QFont('Helvetica', 14)
+            self.normal_btn_font = QFont('Helvetica', 12)
+            self.large_btn_font = QFont('Helvetica', 14)
+        else:
+            # Windows fonts
+            self.lb_font = QFont('Segoe UI', 10)
+            self.middle_lb_font = QFont('Segoe UI', 12)
+            self.large_lb_font = QFont('Segoe UI', 14)
+            self.normal_btn_font = QFont('Segoe UI', 12)
+            self.large_btn_font = QFont('Segoe UI', 14)
         self.lb_font.setBold(True)
-        self.middle_lb_font = QFont('Helvetica', 12)
-        self.large_lb_font = QFont('Helvetica', 14)
-
-        self.normal_btn_font = QFont("Helvetica", 12)
         self.normal_btn_font.setBold(True)
-        self.large_btn_font = QFont("Helvetica", 14)
         self.large_btn_font.setBold(True)
 
         self.large_btn_stylesheet = 'QPushButton {border-radius: 10px;' \

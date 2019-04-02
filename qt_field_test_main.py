@@ -86,20 +86,20 @@ class QuectelDebugLogAnalyzer(QMainWindow):
 
 
 def run():
-    # do some system/computer specific settings
+    # Do some system/computer specific settings
     my_name = getpass.getuser()
     print('[DEBUG] Username:', my_name)
     if my_name == 'lenovo':
         os.putenv('QT_SCALE_FACTOR', '1.0')
     elif my_name == 'SequoiaX':
         os.putenv('QT_SCALE_FACTOR', '1.0')
-    # create the app
+    # Create the app
     my_app = QApplication(sys.argv)
-    # change the fonts
-    if my_name == 'lenovo':
-        local_font = QFont('Microsoft Yahei', 8)  # 'Segoe UI'
+
+    # Change the fonts
+    if sys.platform != 'linux':
+        local_font = QFont('Segoe UI', 9)  # 'Segoe UI'
         my_app.setFont(local_font)
-    # my_app.setAttribute(Qt.AA_EnableHighDpiScaling)
     # my_app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())  # dark mode. You need to run `pip install qdarkstyle` first.
     ex = QuectelDebugLogAnalyzer()
     sys.exit(my_app.exec_())
