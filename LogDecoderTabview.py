@@ -28,12 +28,11 @@ from ExperimentCtrlScript import *
 from SupportingWindows import *
 from utils import *
 
-
 class LogDecoderTabview(QWidget):
-
+    signal_ecl_trigger = pyqtSignal(str)
     def __init__(self, file_io, parent=None):
         super(LogDecoderTabview, self).__init__(parent)
-
+        self.ECL = -1
         self.config = {}  # the global config that control the workflow
         # Initialization to prevent AttributeErrors and KeyErrors
         self.config['UDP local socket'] = 'X'
@@ -1372,4 +1371,6 @@ class LogDecoderTabview(QWidget):
 
     @pyqtSlot(name='UPDATE_ECL')
     def timer_fn_update_current_ecl(self):
+        #global ECL = self.decoder.current_ecl
+        self.signal_ecl_trigger.emit(self.decoder.current_ecl)
         self.current_ecl_lb_ted.setText(self.decoder.current_ecl)

@@ -1,10 +1,11 @@
 # -*- coding: UTF-8 -*-
+from PyQt5.QtCore import QThread
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTabWidget, QPushButton
 from LogDecoderTabview import LogDecoderTabview
 from CurrentPlottingModule.CurrentLivePlotter import CurrentLivePlotter
 from GpsTabview import GpsTabview
 from FileIOHandler import FileIOHandler
-from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 
 class MainWindowTabview(QWidget):
@@ -51,6 +52,7 @@ class MainWindowTabview(QWidget):
         tab1 = QWidget()
         # Create debug_log tab
         log_decoder_tab_view = LogDecoderTabview(file_io)
+        log_decoder_tab_view.signal_ecl_trigger.connect(self.update_ecl)
         tab1.layout = QVBoxLayout()
         tab1.layout.addWidget(log_decoder_tab_view)
         tab1.setLayout(tab1.layout)
@@ -59,9 +61,9 @@ class MainWindowTabview(QWidget):
         if enable_power_monitor_module:
             # Create power_monitor tab
             tab2 = QWidget()
-            power_monitor_view = CurrentLivePlotter(file_io)
+            self.power_monitor_view = CurrentLivePlotter(file_io)
             tab2.layout = QVBoxLayout()
-            tab2.layout.addWidget(power_monitor_view)
+            tab2.layout.addWidget(self.power_monitor_view)
             tab2.setLayout(tab2.layout)
             tabs.addTab(tab2, '&2 Power Monitor')
 
@@ -77,3 +79,16 @@ class MainWindowTabview(QWidget):
         # Add tabs to widget
         main_layout.addWidget(tabs)
         self.setLayout(main_layout)
+
+        #ecl_syn = ECL_Syn(log_decoder_tab_view, power_monitor_view)
+        #ecl_syn.start()
+
+    def update_ecl(self, mea_ecl):
+        if mea_ecl.find('measure') != -1:
+            self.power_monitor_view.volt_panel.display(mea_ecl[0] + '___0')
+        elif mea_ecl.find('next') != -1:
+            self.power_monitor_view.volt_panel.display(mea_ecl[0] + '___1')
+
+
+
+    

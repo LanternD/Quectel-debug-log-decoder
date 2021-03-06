@@ -847,7 +847,6 @@ class UartOnlineLogDecoder(DebugLogDecoder):
             self.rsrp_snr_buf['ts'].append(time_stamp)
             self.rsrp_snr_buf['RSRP'].append(incoming_rsrp)
             self.rsrp_snr_buf['SNR'].append(incoming_snr)
-
             self.update_rsrp_snr_trigger.emit()  # tell the LogDecoderTabview to fetch data.
 
     def extract_npusch_power_from_log(self, complete_log_list):

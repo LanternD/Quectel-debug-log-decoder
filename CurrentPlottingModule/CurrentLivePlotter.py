@@ -11,7 +11,6 @@ import pyqtgraph as pg
 from CurrentPlottingModule.PowerMonitorHandler import PowerMonitorHandler
 from utils import *
 
-
 class CurrentLivePlotter(QWidget):
 
     def __init__(self, file_io, parent=None):
@@ -59,7 +58,7 @@ class CurrentLivePlotter(QWidget):
         usb_label = QLabel('USB Current (mA)')
         usb_label.setFont(self.g_q_style.middle_lb_font)
         self.usb_panel = QLCDNumber()
-        volt_label = QLabel('USB Voltage (V)')
+        volt_label = QLabel('ECL and M=0/N=1')
         volt_label.setFont(self.g_q_style.middle_lb_font)
         self.volt_panel = QLCDNumber()
         self.usb_panel.display('0__0')
